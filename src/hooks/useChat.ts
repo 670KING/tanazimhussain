@@ -1,11 +1,15 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { toast } from 'sonner';
+import { DEFAULT_MODEL } from '@/lib/ai-models';
 
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  model?: string;
+  timestamp?: Date;
 }
 
 export interface Conversation {
@@ -24,6 +28,7 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
@@ -39,7 +44,7 @@ export function useChat() {
     }
   }, [user]);
 
-  const createConversation = async (model: string = 'gemini-flash') => {
+  const createConversation = async (model: string = DEFAULT_MODEL) => {
     if (!user) return null;
 
     const { data, error } = await supabase
@@ -82,6 +87,7 @@ export function useChat() {
           id: m.id,
           role: m.role as 'user' | 'assistant' | 'system',
           content: m.content,
+          timestamp: new Date(m.created_at),
         })));
       }
     }
@@ -98,7 +104,7 @@ export function useChat() {
 
   const sendMessage = async (
     content: string,
-    model: string = 'gemini-flash',
+    model: string = DEFAULT_MODEL,
     type: 'chat' | 'quiz' | 'study_plan' | 'summary' = 'chat'
   ) => {
     if (!user || !content.trim()) return;
@@ -113,10 +119,12 @@ export function useChat() {
       id: crypto.randomUUID(),
       role: 'user',
       content,
+      timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
+    setCurrentModel(null);
 
     // Save user message
     await supabase.from('messages').insert({
@@ -168,17 +176,30 @@ export function useChat() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          throw new Error(errorData.error || 'Rate limited. Please wait a moment and try again.');
+        }
+        throw new Error(errorData.error || 'Failed to get response');
+      }
+
+      // Get model used from header
+      const modelUsed = response.headers.get('X-Model-Used');
+      if (modelUsed) {
+        setCurrentModel(modelUsed);
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantContent = '';
+      let buffer = '';
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: '',
+        model: modelUsed || model,
+        timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -187,31 +208,64 @@ export function useChat() {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (data === '[DONE]') continue;
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
 
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                assistantContent += content;
-                setMessages(prev =>
-                  prev.map(m =>
-                    m.id === assistantMessage.id
-                      ? { ...m, content: assistantContent }
-                      : m
-                  )
-                );
-              }
-            } catch {
-              // Skip invalid JSON
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === assistantMessage.id
+                    ? { ...m, content: assistantContent }
+                    : m
+                )
+              );
             }
+          } catch {
+            // Incomplete JSON, put back in buffer
+            buffer = line + '\n' + buffer;
+            break;
           }
+        }
+      }
+
+      // Flush remaining buffer
+      if (buffer.trim()) {
+        for (let raw of buffer.split('\n')) {
+          if (!raw) continue;
+          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
+          if (raw.startsWith(':') || raw.trim() === '') continue;
+          if (!raw.startsWith('data: ')) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === assistantMessage.id
+                    ? { ...m, content: assistantContent }
+                    : m
+                )
+              );
+            }
+          } catch { /* ignore */ }
         }
       }
 
@@ -225,12 +279,15 @@ export function useChat() {
       }
     } catch (error) {
       console.error('Chat error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      toast.error(errorMessage);
       setMessages(prev => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
+          content: `⚠️ ${errorMessage}\n\nPlease try again or select a different AI model.`,
+          timestamp: new Date(),
         },
       ]);
     } finally {
@@ -239,17 +296,20 @@ export function useChat() {
   };
 
   const deleteConversation = async (conversationId: string) => {
+    await supabase.from('messages').delete().eq('conversation_id', conversationId);
     await supabase.from('conversations').delete().eq('id', conversationId);
     if (currentConversation?.id === conversationId) {
       setCurrentConversation(null);
       setMessages([]);
     }
     fetchConversations();
+    toast.success('Conversation deleted');
   };
 
   const clearCurrentChat = () => {
     setCurrentConversation(null);
     setMessages([]);
+    setCurrentModel(null);
   };
 
   return {
@@ -257,6 +317,7 @@ export function useChat() {
     isLoading,
     currentConversation,
     conversations,
+    currentModel,
     sendMessage,
     createConversation,
     loadConversation,
