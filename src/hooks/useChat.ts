@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import { DEFAULT_MODEL } from '@/lib/ai-models';
+import { DEFAULT_MODEL, DEFAULT_VISION_MODEL, isVisionModel } from '@/lib/ai-models';
+import { PDFOptions } from '@/components/chat/PDFGenerator';
 
 export interface Message {
   id: string;
@@ -10,6 +11,7 @@ export interface Message {
   content: string;
   model?: string;
   timestamp?: Date;
+  images?: string[];
 }
 
 export interface Conversation {
@@ -29,6 +31,7 @@ export function useChat() {
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [isVisionMode, setIsVisionMode] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
@@ -105,32 +108,41 @@ export function useChat() {
   const sendMessage = async (
     content: string,
     model: string = DEFAULT_MODEL,
-    type: 'chat' | 'quiz' | 'study_plan' | 'summary' = 'chat'
-  ) => {
-    if (!user || !content.trim()) return;
+    type: 'chat' | 'quiz' | 'study_plan' | 'summary' | 'vision' | 'pdf' = 'chat',
+    images: string[] = [],
+    pdfOptions?: PDFOptions
+  ): Promise<string> => {
+    if (!user || !content.trim()) return '';
 
     let conversation = currentConversation;
     if (!conversation) {
       conversation = await createConversation(model);
-      if (!conversation) return;
+      if (!conversation) return '';
     }
+
+    // Determine if this is a vision request
+    const hasImages = images.length > 0;
+    const effectiveType = hasImages ? 'vision' : type;
+    const effectiveModel = hasImages && !isVisionModel(model) ? DEFAULT_VISION_MODEL : model;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content,
+      images: hasImages ? images : undefined,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     setCurrentModel(null);
+    setIsVisionMode(hasImages);
 
     // Save user message
     await supabase.from('messages').insert({
       conversation_id: conversation.id,
       role: 'user',
-      content,
+      content: hasImages ? `[Image attached] ${content}` : content,
     });
 
     // Update title on first message
@@ -160,6 +172,8 @@ export function useChat() {
       });
     }
 
+    let assistantContent = '';
+
     try {
       const allMessages = [...messages, userMessage].map(m => ({
         role: m.role,
@@ -172,7 +186,15 @@ export function useChat() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: allMessages, model, stream: true, type }),
+        body: JSON.stringify({ 
+          messages: allMessages, 
+          model: effectiveModel, 
+          stream: true, 
+          type: effectiveType,
+          images,
+          pdfOptions,
+          maxTokens: pdfOptions?.length === 'long' ? 16384 : 8192
+        }),
       });
 
       if (!response.ok) {
@@ -183,22 +205,24 @@ export function useChat() {
         throw new Error(errorData.error || 'Failed to get response');
       }
 
-      // Get model used from header
+      // Get model info from headers
       const modelUsed = response.headers.get('X-Model-Used');
+      const visionMode = response.headers.get('X-Vision-Mode') === 'true';
+      
       if (modelUsed) {
         setCurrentModel(modelUsed);
       }
+      setIsVisionMode(visionMode);
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      let assistantContent = '';
       let buffer = '';
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: '',
-        model: modelUsed || model,
+        model: modelUsed || effectiveModel,
         timestamp: new Date(),
       };
 
@@ -236,7 +260,6 @@ export function useChat() {
               );
             }
           } catch {
-            // Incomplete JSON, put back in buffer
             buffer = line + '\n' + buffer;
             break;
           }
@@ -293,6 +316,30 @@ export function useChat() {
     } finally {
       setIsLoading(false);
     }
+
+    return assistantContent;
+  };
+
+  const regenerateLastMessage = async (model: string = DEFAULT_MODEL) => {
+    if (messages.length < 2) return;
+    
+    // Find the last user message
+    const lastUserIndex = [...messages].reverse().findIndex(m => m.role === 'user');
+    if (lastUserIndex === -1) return;
+    
+    const actualIndex = messages.length - 1 - lastUserIndex;
+    const lastUserMessage = messages[actualIndex];
+    
+    // Remove messages from the last user message onwards
+    setMessages(prev => prev.slice(0, actualIndex));
+    
+    // Resend the message
+    await sendMessage(
+      lastUserMessage.content, 
+      model, 
+      'chat', 
+      lastUserMessage.images || []
+    );
   };
 
   const deleteConversation = async (conversationId: string) => {
@@ -310,6 +357,7 @@ export function useChat() {
     setCurrentConversation(null);
     setMessages([]);
     setCurrentModel(null);
+    setIsVisionMode(false);
   };
 
   return {
@@ -318,11 +366,13 @@ export function useChat() {
     currentConversation,
     conversations,
     currentModel,
+    isVisionMode,
     sendMessage,
     createConversation,
     loadConversation,
     fetchConversations,
     deleteConversation,
     clearCurrentChat,
+    regenerateLastMessage,
   };
 }
