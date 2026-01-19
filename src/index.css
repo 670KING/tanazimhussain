@@ -207,15 +207,15 @@
 
 /* Prose styling for AI responses */
 .prose-ai {
-  @apply text-foreground leading-relaxed;
+  @apply text-foreground leading-relaxed text-sm;
 }
 
 .prose-ai p {
-  @apply mb-4 last:mb-0;
+  @apply mb-3 last:mb-0;
 }
 
 .prose-ai ul, .prose-ai ol {
-  @apply mb-4 pl-6 space-y-2;
+  @apply mb-4 pl-4 space-y-1;
 }
 
 .prose-ai li {
@@ -223,7 +223,7 @@
 }
 
 .prose-ai code {
-  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-primary;
 }
 
 .prose-ai pre {
@@ -231,13 +231,58 @@
 }
 
 .prose-ai pre code {
-  @apply bg-transparent p-0;
+  @apply bg-transparent p-0 text-foreground;
 }
 
 .prose-ai strong {
-  @apply font-semibold;
+  @apply font-bold;
 }
 
-.prose-ai h1, .prose-ai h2, .prose-ai h3 {
-  @apply font-semibold mt-6 mb-3;
+.prose-ai h1 {
+  @apply text-xl font-bold mt-5 mb-3 border-b border-border pb-2;
+}
+
+.prose-ai h2 {
+  @apply text-lg font-semibold mt-4 mb-2;
+}
+
+.prose-ai h3 {
+  @apply text-base font-semibold mt-3 mb-2;
+}
+
+.prose-ai blockquote {
+  @apply border-l-4 border-primary pl-4 py-2 my-4 bg-muted/50 rounded-r-lg italic;
+}
+
+.prose-ai table {
+  @apply w-full border-collapse my-4;
+}
+
+.prose-ai th, .prose-ai td {
+  @apply border border-border px-3 py-2 text-left;
+}
+
+.prose-ai th {
+  @apply bg-muted font-semibold;
+}
+
+.prose-ai hr {
+  @apply my-6 border-border;
+}
+
+.prose-ai a {
+  @apply text-primary hover:underline;
+}
+
+/* KaTeX math styling */
+.katex {
+  font-size: 1.1em;
+}
+
+.katex-display {
+  @apply my-4 overflow-x-auto py-2;
+}
+
+.katex-display > .katex {
+  @apply text-foreground;
 }
