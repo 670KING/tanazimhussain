@@ -118,22 +118,31 @@ Be thorough, accurate, and helpful in your analysis.`;
 
 **Formatting Guidelines:**
 - Use **bold** for important terms and concepts
-- Use \`code blocks\` for code, formulas, and technical terms
+- Use \`code blocks\` for code and technical terms
 - Use proper headings (# ## ###) for organization
 - Use bullet points and numbered lists for clarity
 - Use > blockquotes for definitions or important notes
 - Use tables when comparing information
-- For math equations, use LaTeX: $inline$ or $$block$$
 
-**Math Examples:**
-- Inline: The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$
-- Block equation:
+**Math Equations (IMPORTANT):**
+- For inline math, use single dollar signs: $x^2 + y^2 = r^2$
+- For block/display math, use double dollar signs on separate lines:
+
 $$
-\\int_{a}^{b} f(x) dx = F(b) - F(a)
+\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
 $$
 
-Be helpful, accurate, and educational. Explain concepts clearly with examples. 
-Always encourage learning and critical thinking.`;
+- For matrices, use \\begin{bmatrix}...\\end{bmatrix} inside $$ $$:
+
+$$
+A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}
+$$
+
+- Always use proper LaTeX syntax for fractions (\\frac), square roots (\\sqrt), integrals (\\int), summations (\\sum), etc.
+- Use \\\\ for new lines in matrices
+- Use \\cdot for multiplication dots
+
+Be helpful, accurate, and educational. Explain concepts clearly with examples.`;
   }
 };
 
