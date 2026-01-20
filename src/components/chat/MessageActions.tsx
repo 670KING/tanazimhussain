@@ -11,7 +11,7 @@ import {
   Share2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { downloadTextAsPDF } from './PDFGenerator';
+import { quickDownloadPDF } from '@/components/pdf/UltraPDFGenerator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,9 +51,13 @@ export function MessageActions({
     toast.success('Downloaded as text file');
   };
 
-  const downloadAsPDF = () => {
-    downloadTextAsPDF(content, 'TanoAI Response');
-    toast.success('Downloaded as PDF');
+  const downloadAsPDF = async () => {
+    try {
+      await quickDownloadPDF(content, 'TanoAI_Response');
+      toast.success('Downloaded as PDF');
+    } catch (error) {
+      toast.error('Failed to generate PDF');
+    }
   };
 
   const shareContent = async () => {
