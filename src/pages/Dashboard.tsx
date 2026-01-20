@@ -29,7 +29,7 @@ import { AI_MODELS, VISION_MODELS, ALL_MODELS, getModelById, DEFAULT_MODEL, DEFA
 import { toast } from 'sonner';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { CompactImageUpload } from '@/components/chat/ImageUpload';
-import { PDFGenerator, PDFOptions } from '@/components/chat/PDFGenerator';
+import { UltraPDFGenerator, PDFOptions } from '@/components/pdf/UltraPDFGenerator';
 import { MessageActions } from '@/components/chat/MessageActions';
 
 export default function Dashboard() {
@@ -258,7 +258,7 @@ export default function Dashboard() {
             </Select>
             
             {/* PDF Generator */}
-            <PDFGenerator onGenerateWithAI={handleGeneratePDF} isLoading={isLoading} />
+            <UltraPDFGenerator onGenerateWithAI={handleGeneratePDF} isLoading={isLoading} />
             
             {/* Model Info */}
             <Tooltip>

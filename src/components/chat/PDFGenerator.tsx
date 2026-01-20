@@ -23,7 +23,7 @@ interface PDFGeneratorProps {
 
 export interface PDFOptions {
   title: string;
-  type: 'assignment' | 'report' | 'notes' | 'essay' | 'research';
+  type: 'assignment' | 'report' | 'notes' | 'essay' | 'research' | 'cheatsheet';
   style: 'academic' | 'professional' | 'casual';
   length: 'short' | 'medium' | 'long';
 }
