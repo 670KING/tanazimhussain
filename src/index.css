@@ -193,8 +193,15 @@
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
+}
+
+@media (min-width: 640px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 }
 
 ::-webkit-scrollbar-track {
@@ -205,17 +212,33 @@
   @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30 transition-colors;
 }
 
+/* Mobile touch scrolling improvements */
+.touch-pan-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text selection issues on mobile */
+@media (max-width: 640px) {
+  .prose-ai {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* Prose styling for AI responses */
 .prose-ai {
-  @apply text-foreground leading-relaxed text-sm;
+  @apply text-foreground leading-relaxed text-xs sm:text-sm;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .prose-ai p {
-  @apply mb-3 last:mb-0;
+  @apply mb-2 sm:mb-3 last:mb-0;
 }
 
 .prose-ai ul, .prose-ai ol {
-  @apply mb-4 pl-4 space-y-1;
+  @apply mb-2 sm:mb-4 pl-2 sm:pl-4 space-y-0.5 sm:space-y-1;
 }
 
 .prose-ai li {
@@ -223,15 +246,15 @@
 }
 
 .prose-ai code {
-  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-primary;
+  @apply bg-muted px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-sm font-mono text-primary break-words;
 }
 
 .prose-ai pre {
-  @apply bg-muted p-4 rounded-lg overflow-x-auto mb-4;
+  @apply bg-muted p-2 sm:p-4 rounded-lg overflow-x-auto mb-2 sm:mb-4;
 }
 
 .prose-ai pre code {
-  @apply bg-transparent p-0 text-foreground;
+  @apply bg-transparent p-0 text-foreground text-[10px] sm:text-sm;
 }
 
 .prose-ai strong {
@@ -239,27 +262,27 @@
 }
 
 .prose-ai h1 {
-  @apply text-xl font-bold mt-5 mb-3 border-b border-border pb-2;
+  @apply text-base sm:text-xl font-bold mt-3 sm:mt-5 mb-2 sm:mb-3 border-b border-border pb-2;
 }
 
 .prose-ai h2 {
-  @apply text-lg font-semibold mt-4 mb-2;
+  @apply text-sm sm:text-lg font-semibold mt-2 sm:mt-4 mb-1 sm:mb-2;
 }
 
 .prose-ai h3 {
-  @apply text-base font-semibold mt-3 mb-2;
+  @apply text-xs sm:text-base font-semibold mt-2 sm:mt-3 mb-1 sm:mb-2;
 }
 
 .prose-ai blockquote {
-  @apply border-l-4 border-primary pl-4 py-2 my-4 bg-muted/50 rounded-r-lg italic;
+  @apply border-l-4 border-primary pl-2 sm:pl-4 py-1 sm:py-2 my-2 sm:my-4 bg-muted/50 rounded-r-lg italic text-xs sm:text-sm;
 }
 
 .prose-ai table {
-  @apply w-full border-collapse my-4;
+  @apply w-full border-collapse my-2 sm:my-4 text-[10px] sm:text-sm;
 }
 
 .prose-ai th, .prose-ai td {
-  @apply border border-border px-3 py-2 text-left;
+  @apply border border-border px-1.5 sm:px-3 py-1 sm:py-2 text-left;
 }
 
 .prose-ai th {
@@ -267,22 +290,60 @@
 }
 
 .prose-ai hr {
-  @apply my-6 border-border;
+  @apply my-3 sm:my-6 border-border;
 }
 
 .prose-ai a {
-  @apply text-primary hover:underline;
+  @apply text-primary hover:underline break-words;
 }
 
-/* KaTeX math styling */
+/* KaTeX math styling - ENHANCED */
 .katex {
-  font-size: 1.1em;
+  font-size: 0.95em;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+@media (min-width: 640px) {
+  .katex {
+    font-size: 1.1em;
+  }
 }
 
 .katex-display {
-  @apply my-4 overflow-x-auto py-2;
+  @apply my-2 sm:my-4 overflow-x-auto py-1 sm:py-2;
+  -webkit-overflow-scrolling: touch;
 }
 
 .katex-display > .katex {
   @apply text-foreground;
+}
+
+/* Ensure matrices and large equations scroll on mobile */
+.katex .base {
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Math block styling */
+.prose-ai .math-inline {
+  @apply mx-0.5;
+}
+
+.prose-ai .math-display {
+  @apply block text-center overflow-x-auto py-2;
+}
+
+/* Matrix styling */
+.katex .mord.mtight,
+.katex .minner {
+  display: inline-flex;
+  flex-wrap: nowrap;
+}
+
+/* Responsive breakpoint for xs */
+@media (min-width: 360px) {
+  .xs\:block { display: block; }
+  .xs\:inline { display: inline; }
+  .xs\:inline-flex { display: inline-flex; }
 }
