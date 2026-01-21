@@ -1,7 +1,8 @@
-// Multi-format document exporter
+// Multi-format document exporter with human-readable math
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { ThemeConfig, getTheme, PDFTheme } from './PDFThemes';
+import { latexToHumanReadable, cleanMarkdown } from '@/lib/math-utils';
 
 export interface ExportOptions {
   title: string;
@@ -41,7 +42,7 @@ function parseContent(content: string): ContentSection[] {
       sections.push({
         type: 'heading',
         level: headingMatch[1].length,
-        content: headingMatch[2],
+        content: cleanMarkdown(headingMatch[2]),
       });
       i++;
       continue;
@@ -61,11 +62,11 @@ function parseContent(content: string): ContentSection[] {
     }
 
     // Math blocks ($$...$$)
-    if (line.startsWith('$$')) {
-      let mathContent = line.substring(2);
+    if (line.startsWith('$$') || line.includes('\\begin{')) {
+      let mathContent = line.startsWith('$$') ? line.substring(2) : line;
       if (!line.endsWith('$$') || line === '$$') {
         i++;
-        while (i < lines.length && !lines[i].endsWith('$$')) {
+        while (i < lines.length && !lines[i].endsWith('$$') && !lines[i].includes('\\end{')) {
           mathContent += '\n' + lines[i];
           i++;
         }
@@ -75,7 +76,16 @@ function parseContent(content: string): ContentSection[] {
       } else {
         mathContent = line.substring(2, line.length - 2);
       }
-      sections.push({ type: 'math', content: mathContent.trim() });
+      // Convert to human-readable
+      sections.push({ type: 'math', content: latexToHumanReadable(mathContent.trim()) });
+      i++;
+      continue;
+    }
+
+    // Inline math in paragraphs - convert to human readable
+    if (line.includes('$') && !line.startsWith('$')) {
+      const converted = latexToHumanReadable(line);
+      sections.push({ type: 'paragraph', content: cleanMarkdown(converted) });
       i++;
       continue;
     }
@@ -88,7 +98,7 @@ function parseContent(content: string): ContentSection[] {
         quoteContent += '\n' + lines[i].substring(1).trim();
         i++;
       }
-      sections.push({ type: 'quote', content: quoteContent });
+      sections.push({ type: 'quote', content: cleanMarkdown(quoteContent) });
       continue;
     }
 
@@ -96,7 +106,8 @@ function parseContent(content: string): ContentSection[] {
     if (line.match(/^[\-\*]\s+/) || line.match(/^\d+\.\s+/)) {
       const items: string[] = [];
       while (i < lines.length && (lines[i].match(/^[\-\*]\s+/) || lines[i].match(/^\d+\.\s+/))) {
-        items.push(lines[i].replace(/^[\-\*\d\.]+\s+/, ''));
+        const item = lines[i].replace(/^[\-\*\d\.]+\s+/, '');
+        items.push(cleanMarkdown(latexToHumanReadable(item)));
         i++;
       }
       sections.push({ type: 'list', content: '', items });
@@ -110,7 +121,7 @@ function parseContent(content: string): ContentSection[] {
       paragraphContent += ' ' + lines[i];
       i++;
     }
-    sections.push({ type: 'paragraph', content: paragraphContent });
+    sections.push({ type: 'paragraph', content: cleanMarkdown(latexToHumanReadable(paragraphContent)) });
   }
 
   return sections;
@@ -157,8 +168,6 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
   const sections = parseContent(options.content);
   const headings = extractHeadings(sections);
   
-  // Track page numbers for ToC
-  const headingPages: Map<string, number> = new Map();
   let currentPage = 1;
   let y = margins.top;
 
@@ -186,7 +195,7 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
     doc.rect(0, 0, pageWidth, pageHeight, 'F');
   }
 
-  // Title page
+  // Title
   doc.setFont(theme.fonts.title, 'bold');
   doc.setFontSize(fontSize.title);
   setColor(theme.colors.primary);
@@ -282,9 +291,6 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         const level = section.level || 1;
         const size = level === 1 ? fontSize.h1 : level === 2 ? fontSize.h2 : fontSize.h3;
         
-        // Track heading page
-        headingPages.set(section.content, currentPage);
-        
         // Add some space before heading
         y += level === 1 ? 8 : 5;
         
@@ -304,8 +310,9 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
           doc.text(section.content, margins.left + 3, y);
           y += 10;
         } else {
-          doc.text(section.content, margins.left, y);
-          y += size * 0.6;
+          const headingLines = doc.splitTextToSize(section.content, contentWidth);
+          doc.text(headingLines, margins.left, y);
+          y += headingLines.length * size * 0.5 + 3;
         }
         break;
       }
@@ -315,13 +322,7 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         doc.setFontSize(fontSize.body);
         setColor(theme.colors.text);
         
-        // Handle inline formatting (bold, italic, code)
-        let text = section.content;
-        text = text.replace(/\*\*(.+?)\*\*/g, '$1'); // Remove markdown for now
-        text = text.replace(/\*(.+?)\*/g, '$1');
-        text = text.replace(/`(.+?)`/g, '$1');
-        
-        const lines = doc.splitTextToSize(text, contentWidth);
+        const lines = doc.splitTextToSize(section.content, contentWidth);
         
         for (const line of lines) {
           if (y > pageHeight - margins.bottom) {
@@ -339,7 +340,7 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         doc.setFontSize(fontSize.body - 1);
         
         const codeLines = doc.splitTextToSize(section.content, contentWidth - 10);
-        const boxHeight = codeLines.length * 4 + 8;
+        const boxHeight = Math.min(codeLines.length * 4 + 8, 80);
         
         // Code background
         doc.setFillColor(...theme.colors.codeBg);
@@ -350,14 +351,16 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         }
         
         setColor(theme.colors.code);
-        doc.text(codeLines, margins.left + 4, y + 4);
+        // Limit lines shown
+        const displayLines = codeLines.slice(0, 18);
+        doc.text(displayLines, margins.left + 4, y + 4);
         y += boxHeight + 6;
         break;
       }
 
       case 'math': {
-        // Math block with special styling
-        doc.setFont(theme.fonts.code, 'italic');
+        // Math block - now human readable
+        doc.setFont(theme.fonts.body, 'normal');
         doc.setFontSize(fontSize.body);
         setColor(theme.colors.accent);
         
@@ -370,7 +373,7 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
           }
           const textWidth = doc.getTextWidth(line);
           doc.text(line, (pageWidth - textWidth) / 2, y);
-          y += fontSize.body * 0.5;
+          y += fontSize.body * 0.6;
         }
         y += 6;
         break;
@@ -384,11 +387,13 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         // Quote line
         doc.setDrawColor(...theme.colors.accent);
         doc.setLineWidth(1);
-        doc.line(margins.left, y - 2, margins.left, y + 12);
         
         const quoteLines = doc.splitTextToSize(section.content, contentWidth - 15);
+        const quoteHeight = quoteLines.length * 4.5;
+        
+        doc.line(margins.left, y - 2, margins.left, y + quoteHeight);
         doc.text(quoteLines, margins.left + 8, y);
-        y += quoteLines.length * 4.5 + 6;
+        y += quoteHeight + 6;
         break;
       }
 
@@ -401,8 +406,11 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
           if (y > pageHeight - margins.bottom) {
             addPage();
           }
-          doc.text('•  ' + item, margins.left + 5, y);
-          y += fontSize.body * lineHeight * 0.4;
+          const itemLines = doc.splitTextToSize('•  ' + item, contentWidth - 10);
+          for (let j = 0; j < itemLines.length; j++) {
+            doc.text(itemLines[j], margins.left + (j === 0 ? 5 : 10), y);
+            y += fontSize.body * lineHeight * 0.4;
+          }
         }
         y += 4;
         break;
@@ -440,11 +448,6 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    
-    // Apply dark bg if needed
-    if (options.theme === 'dark' && i > 1) {
-      // Already applied during addPage
-    }
     
     doc.setFontSize(fontSize.caption);
     setColor(theme.colors.muted);
@@ -527,16 +530,15 @@ export function exportAsLaTeX(options: ExportOptions): string {
   return latex;
 }
 
-// Export as plain text
+// Export as plain text with human-readable math
 export function exportAsText(options: ExportOptions): string {
   let text = options.content;
   
+  // Convert math to human readable
+  text = latexToHumanReadable(text);
+  
   // Remove markdown formatting
-  text = text.replace(/#{1,6}\s+/g, '');
-  text = text.replace(/\*\*(.+?)\*\*/g, '$1');
-  text = text.replace(/\*(.+?)\*/g, '$1');
-  text = text.replace(/`{1,3}([^`]+)`{1,3}/g, '$1');
-  text = text.replace(/```[\s\S]*?```/g, (match) => match.replace(/```\w*\n?/g, ''));
+  text = cleanMarkdown(text);
   
   return `${options.title}\n${'='.repeat(options.title.length)}\n\nGenerated by TanoAI on ${new Date().toLocaleDateString()}\n\n${text}`;
 }
