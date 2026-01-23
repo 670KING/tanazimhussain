@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { Loader2, FileQuestion, CheckCircle, XCircle, Trophy, Target, Clock, RefreshCw, Sparkles } from 'lucide-react';
+import { Loader2, FileQuestion, CheckCircle, XCircle, Trophy, Target, Clock, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface QuizQuestion {
@@ -30,17 +31,25 @@ export default function QuizGenerator() {
   const [submitted, setSubmitted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
 
-  const generateQuiz = async () => {
+  const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const generateQuiz = async (retry = false) => {
     if (!topic.trim()) {
       toast.error('Please enter a topic');
       return;
     }
     
-    setIsGenerating(true);
-    setQuiz([]);
-    setAnswers({});
-    setSubmitted(false);
-    setCurrentQuestion(0);
+    if (retry) {
+      setIsRetrying(true);
+    } else {
+      setIsGenerating(true);
+      setQuiz([]);
+      setAnswers({});
+      setSubmitted(false);
+      setCurrentQuestion(0);
+    }
+    setError(null);
 
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
@@ -88,11 +97,14 @@ Make questions educational and appropriate for students. Include detailed explan
       } else {
         throw new Error('Failed to parse quiz questions');
       }
-    } catch (error) {
-      console.error('Quiz generation error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to generate quiz');
+    } catch (err) {
+      console.error('Quiz generation error:', err);
+      const message = err instanceof Error ? err.message : 'Failed to generate quiz';
+      setError(message);
+      toast.error(message);
     } finally {
       setIsGenerating(false);
+      setIsRetrying(false);
     }
   };
 
@@ -204,7 +216,7 @@ Make questions educational and appropriate for students. Include detailed explan
               </SelectContent>
             </Select>
             <Button 
-              onClick={generateQuiz} 
+              onClick={() => generateQuiz()} 
               disabled={isGenerating || !topic.trim()} 
               className="h-11 gradient-primary shadow-glow"
             >

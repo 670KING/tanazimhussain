@@ -193,23 +193,32 @@
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 @media (min-width: 640px) {
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-muted/30 rounded-full;
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30 transition-colors;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Mobile touch scrolling improvements */
@@ -218,12 +227,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Safe area for mobile keyboards and notches */
+.safe-area-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Prevent zoom on iOS when focusing inputs */
+@media screen and (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* Prevent text selection issues on mobile */
 @media (max-width: 640px) {
   .prose-ai {
     -webkit-user-select: text;
     user-select: text;
   }
+}
+
+/* Prevent pull-to-refresh on mobile in scrollable areas */
+.overscroll-contain {
+  overscroll-behavior: contain;
 }
 
 /* Prose styling for AI responses */

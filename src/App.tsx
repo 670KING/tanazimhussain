@@ -13,6 +13,7 @@ import Summarizer from "./pages/Summarizer";
 import StudyPlans from "./pages/StudyPlans";
 import Documents from "./pages/Documents";
 import Analytics from "./pages/Analytics";
+import ResumeBuilder from "./pages/ResumeBuilder";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="quiz" element={<QuizGenerator />} />
               <Route path="study-plans" element={<StudyPlans />} />
               <Route path="summarize" element={<Summarizer />} />
+              <Route path="resume" element={<ResumeBuilder />} />
               <Route path="documents" element={<Documents />} />
               <Route path="analytics" element={<Analytics />} />
             </Route>

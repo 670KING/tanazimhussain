@@ -386,8 +386,8 @@ export default function Dashboard() {
           </ScrollArea>
         </CardContent>
 
-        {/* Input */}
-        <div className="p-2 sm:p-3 border-t border-border/50 bg-card/50 flex-shrink-0">
+        {/* Input - Fixed at bottom with safe area */}
+        <div className="p-2 sm:p-3 border-t border-border/50 bg-card/80 backdrop-blur-sm flex-shrink-0 safe-area-bottom">
           {/* Attached Images Preview */}
           {attachedImages.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
@@ -408,7 +408,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-end">
             <div className="relative flex-1">
               <Textarea
                 ref={inputRef}
@@ -416,8 +416,12 @@ export default function Dashboard() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={attachedImages.length > 0 ? "Describe what you want to know..." : "Ask me anything..."}
-                className="min-h-[44px] max-h-32 resize-none pr-14 sm:pr-20 bg-background/50 text-sm"
+                className="min-h-[44px] max-h-24 sm:max-h-32 resize-none pr-12 sm:pr-20 bg-background/50 text-sm rounded-xl"
                 rows={1}
+                style={{ 
+                  paddingBottom: '8px',
+                  fontSize: '16px', // Prevents iOS zoom
+                }}
               />
               <div className="absolute right-1.5 bottom-1.5 flex items-center gap-1">
                 <span className="text-[9px] text-muted-foreground mr-0.5 hidden sm:inline">
@@ -432,7 +436,7 @@ export default function Dashboard() {
             <Button 
               onClick={handleSend} 
               disabled={isLoading || (!input.trim() && attachedImages.length === 0)}
-              className="gradient-primary h-11 px-4 shadow-glow"
+              className="gradient-primary h-11 w-11 sm:w-auto sm:px-4 shadow-glow shrink-0 rounded-xl"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -443,7 +447,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center justify-between mt-1.5 text-[9px] sm:text-[10px] text-muted-foreground">
             <span className="hidden sm:inline">Enter to send • Shift+Enter for new line</span>
-            <span className="sm:hidden">Enter to send</span>
+            <span className="sm:hidden">Tap send or Enter</span>
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               <span className="hidden sm:inline">{ALL_MODELS.length} models • Math & code</span>
