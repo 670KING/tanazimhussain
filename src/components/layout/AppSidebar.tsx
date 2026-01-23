@@ -26,6 +26,7 @@ import {
   User,
   Sun,
   Moon,
+  FileUser,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -34,6 +35,7 @@ const menuItems = [
   { title: 'Quiz Generator', icon: FileQuestion, path: '/dashboard/quiz' },
   { title: 'Study Plans', icon: Calendar, path: '/dashboard/study-plans' },
   { title: 'Summarizer', icon: Sparkles, path: '/dashboard/summarize' },
+  { title: 'Resume Builder', icon: FileUser, path: '/dashboard/resume' },
   { title: 'Documents', icon: FileText, path: '/dashboard/documents' },
   { title: 'Analytics', icon: BarChart3, path: '/dashboard/analytics' },
 ];
