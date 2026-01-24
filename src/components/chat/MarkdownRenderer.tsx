@@ -6,9 +6,10 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Download, Maximize2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Copy, Check, Download, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
+import { preprocessLatex } from '@/lib/math-utils';
 import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
@@ -16,49 +17,15 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
-// Enhanced math preprocessing for human-readable output
-function preprocessMath(content: string): string {
-  let processed = content;
-  
-  // Fix double-escaped backslashes (\\frac -> \frac)
-  processed = processed.replace(/\\\\(frac|begin|end|left|right|sqrt|sum|int|prod|lim|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|sim|subset|supset|in|notin|cup|cap|land|lor|neg|forall|exists|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla|bmatrix|pmatrix|matrix|cases|align|equation|text|mathbf|mathrm|vec|hat|bar|dot|ddot)/gi, '\\$1');
-  
-  // Fix quadruple backslash newlines in matrices (\\\\  -> \\)
-  processed = processed.replace(/\\\\\\\\/g, '\\\\');
-  
-  // Convert \( \) to $ $ for inline math
-  processed = processed.replace(/\\\(([^)]+)\\\)/g, ' $$$1$$ ');
-  
-  // Convert \[ \] to $$ $$ for display math
-  processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, '\n$$\n$1\n$$\n');
-  
-  // Wrap bare \begin{...}...\end{...} blocks in $$
-  const envPattern = /(?<!\$\$?\s*)\\begin\{(bmatrix|pmatrix|matrix|vmatrix|Bmatrix|cases|align|aligned|equation|array|gather)\}([\s\S]*?)\\end\{\1\}(?!\s*\$\$?)/g;
-  processed = processed.replace(envPattern, '\n$$\n\\begin{$1}$2\\end{$1}\n$$\n');
-  
-  // Fix common AI mistakes: escaped matrix environment names
-  processed = processed.replace(/\\\\begin\{/g, '\\begin{');
-  processed = processed.replace(/\\\\end\{/g, '\\end{');
-  
-  // Clean up multiple newlines
-  processed = processed.replace(/\n{3,}/g, '\n\n');
-  
-  // Ensure proper spacing around math
-  processed = processed.replace(/\s+\$/g, ' $');
-  processed = processed.replace(/\$\s+/g, '$ ');
-  
-  return processed;
-}
-
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   
   // Pre-process content to fix math formatting
-  const processedContent = useMemo(() => preprocessMath(content), [content]);
+  const processedContent = useMemo(() => preprocessLatex(content), [content]);
 
   return (
-    <div className={`prose-ai break-words ${className}`}>
+    <div className={`prose-ai break-words overflow-hidden ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[
@@ -73,6 +40,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
               "\\Z": "\\mathbb{Z}",
               "\\Q": "\\mathbb{Q}",
               "\\C": "\\mathbb{C}",
+              "\\bm": "\\mathbf",
             }
           }]
         ]}
@@ -101,7 +69,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
 
           // Paragraphs with proper wrapping
           p: ({ children }) => (
-            <p className="mb-2 sm:mb-3 last:mb-0 leading-relaxed text-foreground text-xs sm:text-sm md:text-base break-words hyphens-auto">
+            <p className="mb-2 sm:mb-3 last:mb-0 leading-relaxed text-foreground text-xs sm:text-sm md:text-base break-words hyphens-auto overflow-hidden">
               {children}
             </p>
           ),
@@ -133,7 +101,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
 
           // Blockquotes with accent
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-primary pl-3 sm:pl-4 py-2 sm:py-3 my-2 sm:my-4 bg-muted/50 rounded-r-lg italic text-xs sm:text-sm md:text-base">
+            <blockquote className="border-l-4 border-primary pl-3 sm:pl-4 py-2 sm:py-3 my-2 sm:my-4 bg-muted/50 rounded-r-lg italic text-xs sm:text-sm md:text-base overflow-hidden">
               {children}
             </blockquote>
           ),
@@ -215,26 +183,24 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
   );
 }
 
-function CodeBlock({ 
-  children, 
-  language, 
-  isDark 
-}: { 
-  children: string; 
+interface CodeBlockProps {
+  children: string;
   language: string;
   isDark: boolean;
-}) {
+}
+
+function CodeBlock({ children, language, isDark }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const copyCode = () => {
+  const copyCode = useCallback(() => {
     navigator.clipboard.writeText(children);
     setCopied(true);
     toast.success('Code copied!');
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [children]);
 
-  const downloadCode = () => {
+  const downloadCode = useCallback(() => {
     const blob = new Blob([children], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -243,27 +209,35 @@ function CodeBlock({
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Code downloaded!');
-  };
+  }, [children, language]);
 
   const lineCount = children.split('\n').length;
-  const shouldTruncate = lineCount > 15 && !expanded;
+  const shouldTruncate = lineCount > 20 && !expanded;
+  const displayContent = shouldTruncate 
+    ? children.split('\n').slice(0, 20).join('\n') + '\n// ...'
+    : children;
 
   return (
-    <div className="relative group my-2 sm:my-4 rounded-lg overflow-hidden border border-border">
+    <div className="relative group my-2 sm:my-4 rounded-lg overflow-hidden border border-border w-full">
       {/* Header */}
       <div className="flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 bg-muted/80 border-b border-border">
-        <span className="text-[10px] sm:text-xs font-mono text-muted-foreground uppercase">
+        <span className="text-[10px] sm:text-xs font-mono text-muted-foreground uppercase truncate max-w-[100px]">
           {language || 'code'}
         </span>
         <div className="flex items-center gap-0.5 sm:gap-1">
-          {lineCount > 15 && (
+          {lineCount > 20 && (
             <Button
               size="icon"
               variant="ghost"
               className="h-6 w-6 sm:h-7 sm:w-7"
               onClick={() => setExpanded(!expanded)}
+              title={expanded ? 'Collapse' : 'Expand'}
             >
-              <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              {expanded ? (
+                <Minimize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              ) : (
+                <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              )}
             </Button>
           )}
           <Button
@@ -271,6 +245,7 @@ function CodeBlock({
             variant="ghost"
             className="h-6 w-6 sm:h-7 sm:w-7"
             onClick={downloadCode}
+            title="Download"
           >
             <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           </Button>
@@ -279,6 +254,7 @@ function CodeBlock({
             variant="ghost"
             className="h-6 w-6 sm:h-7 sm:w-7"
             onClick={copyCode}
+            title="Copy"
           >
             {copied ? (
               <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
@@ -289,8 +265,8 @@ function CodeBlock({
         </div>
       </div>
 
-      {/* Code */}
-      <div className={`overflow-x-auto ${shouldTruncate ? 'max-h-[300px] overflow-y-hidden' : ''}`}>
+      {/* Code - with horizontal scroll for long lines */}
+      <div className={`overflow-x-auto overflow-y-hidden ${shouldTruncate ? 'max-h-[400px]' : ''}`}>
         <SyntaxHighlighter
           style={isDark ? oneDark : oneLight}
           language={language}
@@ -300,11 +276,12 @@ function CodeBlock({
             padding: '0.5rem 0.75rem',
             background: isDark ? 'hsl(222 47% 9%)' : 'hsl(220 14% 96%)',
             fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
+            minWidth: 'fit-content',
           }}
-          wrapLines={true}
-          wrapLongLines={true}
+          wrapLines={false}
+          wrapLongLines={false}
         >
-          {children}
+          {displayContent}
         </SyntaxHighlighter>
       </div>
       
@@ -312,7 +289,7 @@ function CodeBlock({
       {shouldTruncate && (
         <button
           onClick={() => setExpanded(true)}
-          className="w-full py-2 text-xs text-center text-primary bg-muted/50 hover:bg-muted border-t border-border"
+          className="w-full py-2 text-xs text-center text-primary bg-muted/50 hover:bg-muted border-t border-border transition-colors"
         >
           Show all {lineCount} lines
         </button>

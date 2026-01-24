@@ -8,13 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { 
   FileUser, Download, Loader2, Sparkles, Eye, Edit, 
   Palette, Layout, Settings2, RefreshCw, FileText,
-  Briefcase, GraduationCap, Wand2
+  Briefcase, GraduationCap, Wand2, Send
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResumeEditor } from './ResumeEditor';
@@ -47,7 +48,9 @@ export function ResumeBuilder() {
   const [config, setConfig] = useState<ResumeConfig>(DEFAULT_RESUME_CONFIG);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [activeView, setActiveView] = useState<'editor' | 'preview'>('editor');
+  const [activeView, setActiveView] = useState<'editor' | 'preview' | 'ai'>('editor');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const handleAIEnhance = useCallback(async (field: string, content: string): Promise<string> => {
@@ -68,9 +71,9 @@ export function ResumeBuilder() {
 Original content:
 ${content}`
           }],
-          model: 'gemini-flash',
+          model: 'mimo-flash',
           stream: false,
-          type: 'chat',
+          type: 'resume',
         }),
       });
 
@@ -80,10 +83,134 @@ ${content}`
 
       const result = await response.json();
       return result.choices?.[0]?.message?.content || content;
+    } catch (error) {
+      console.error('AI enhance error:', error);
+      toast.error('Failed to enhance content. Please try again.');
+      return content;
     } finally {
       setIsEnhancing(false);
     }
   }, []);
+
+  // One-prompt AI resume generation
+  const handleAIGenerate = useCallback(async () => {
+    if (!aiPrompt.trim()) {
+      toast.error('Please describe your background and target role');
+      return;
+    }
+
+    setIsAiGenerating(true);
+    toast.info('AI is generating your resume...', { duration: 3000 });
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
+            content: `You are an expert resume writer. Based on the following description, generate a complete professional resume in JSON format.
+
+User's background and target role:
+${aiPrompt}
+
+Return ONLY valid JSON with this exact structure (no markdown, no code blocks, just pure JSON):
+{
+  "personalInfo": {
+    "fullName": "Full Name",
+    "email": "email@example.com",
+    "phone": "+1 (555) 123-4567",
+    "location": "City, State",
+    "linkedin": "linkedin.com/in/username",
+    "website": "",
+    "summary": "Professional summary paragraph..."
+  },
+  "experience": [
+    {
+      "id": "1",
+      "company": "Company Name",
+      "position": "Job Title",
+      "location": "City, State",
+      "startDate": "Jan 2022",
+      "endDate": "Present",
+      "description": "• Achievement 1 with metrics\\n• Achievement 2 with impact\\n• Achievement 3"
+    }
+  ],
+  "education": [
+    {
+      "id": "1",
+      "institution": "University Name",
+      "degree": "Degree Type",
+      "field": "Field of Study",
+      "startDate": "2018",
+      "endDate": "2022",
+      "gpa": "3.8"
+    }
+  ],
+  "skills": {
+    "technical": ["Skill 1", "Skill 2", "Skill 3"],
+    "soft": ["Communication", "Leadership"],
+    "languages": ["English (Native)"],
+    "certifications": ["Certification 1"]
+  }
+}
+
+Make the resume ATS-friendly with strong action verbs and quantified achievements.`
+          }],
+          model: 'mimo-flash',
+          stream: false,
+          type: 'resume',
+          maxTokens: 4096,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate resume');
+      }
+
+      const result = await response.json();
+      const content = result.choices?.[0]?.message?.content || '';
+      
+      // Try to parse the JSON from the response
+      try {
+        // Remove any markdown code blocks if present
+        let jsonStr = content.trim();
+        if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
+        }
+        
+        const resumeData = JSON.parse(jsonStr);
+        
+        // Update the resume data
+        setData({
+          personalInfo: {
+            ...DEFAULT_RESUME_DATA.personalInfo,
+            ...resumeData.personalInfo,
+            photo: data.personalInfo.photo, // Keep existing photo
+          },
+          experience: resumeData.experience || [],
+          education: resumeData.education || [],
+          skills: resumeData.skills || [],
+          projects: resumeData.projects || [],
+          certifications: resumeData.certifications || [],
+        });
+        
+        toast.success('Resume generated successfully! Review and customize as needed.');
+        setActiveView('editor');
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError, content);
+        toast.error('AI response format error. Please try again.');
+      }
+    } catch (error) {
+      console.error('AI generate error:', error);
+      toast.error('Failed to generate resume. Please try again.');
+    } finally {
+      setIsAiGenerating(false);
+    }
+  }, [aiPrompt, data.personalInfo.photo]);
 
   const exportToPDF = useCallback(async () => {
     if (!previewRef.current) {
@@ -101,14 +228,16 @@ ${content}`
         throw new Error('Resume content not found');
       }
 
-      // Create canvas from the resume content
+      // Create canvas from the resume content with higher quality
       const canvas = await html2canvas(resumeContent, {
-        scale: 2,
+        scale: 3, // Higher scale for better quality
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         width: resumeContent.scrollWidth,
         height: resumeContent.scrollHeight,
+        windowWidth: resumeContent.scrollWidth,
+        windowHeight: resumeContent.scrollHeight,
       });
 
       // Create PDF with A4 dimensions
@@ -124,20 +253,20 @@ ${content}`
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      // Add image to PDF
+      // Add image to PDF with high quality
       const imgData = canvas.toDataURL('image/png', 1.0);
       
       // Handle multi-page if content is taller than A4
       let heightLeft = imgHeight;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pdfHeight;
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pdfHeight;
       }
 
@@ -160,6 +289,7 @@ ${content}`
     if (window.confirm('Are you sure you want to reset? All data will be lost.')) {
       setData(DEFAULT_RESUME_DATA);
       setConfig(DEFAULT_RESUME_CONFIG);
+      setAiPrompt('');
       toast.success('Resume reset to defaults');
     }
   };
@@ -180,16 +310,20 @@ ${content}`
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* Mobile View Toggle */}
-            <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'editor' | 'preview')} className="lg:hidden">
-              <TabsList className="h-8">
-                <TabsTrigger value="editor" className="text-xs gap-1.5 px-3">
-                  <Edit className="w-3.5 h-3.5" />
-                  Edit
+            {/* View Toggle */}
+            <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'editor' | 'preview' | 'ai')} className="flex-1 sm:flex-none">
+              <TabsList className="h-8 w-full sm:w-auto grid grid-cols-3">
+                <TabsTrigger value="ai" className="text-xs gap-1 px-2 sm:px-3">
+                  <Wand2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">AI</span>
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="text-xs gap-1.5 px-3">
+                <TabsTrigger value="editor" className="text-xs gap-1 px-2 sm:px-3">
+                  <Edit className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Edit</span>
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="text-xs gap-1 px-2 sm:px-3">
                   <Eye className="w-3.5 h-3.5" />
-                  Preview
+                  <span className="hidden sm:inline">Preview</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -223,78 +357,150 @@ ${content}`
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Editor Panel */}
-          <div className={cn(
-            "lg:w-1/2 border-r border-border/50 flex flex-col overflow-hidden",
-            activeView !== 'editor' && "hidden lg:flex"
-          )}>
-            {/* Template & Color Settings */}
-            <div className="p-3 border-b border-border/50 bg-muted/30 shrink-0">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Template Selector */}
-                <Select
-                  value={config.template}
-                  onValueChange={(v) => setConfig({ ...config, template: v as ResumeTemplate })}
-                >
-                  <SelectTrigger className="w-40 h-8 text-xs">
-                    <Layout className="w-3.5 h-3.5 mr-1.5" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TEMPLATE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <div className="flex items-center gap-2">
-                          <opt.icon className="w-4 h-4" />
-                          <span>{opt.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Color Picker */}
-                <div className="flex items-center gap-1">
-                  {COLOR_PRESETS.slice(0, 6).map((color) => (
-                    <button
-                      key={color.value}
-                      className={cn(
-                        "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110",
-                        config.primaryColor === color.value ? "border-foreground scale-110" : "border-transparent"
-                      )}
-                      style={{ backgroundColor: color.value }}
-                      onClick={() => setConfig({ ...config, primaryColor: color.value })}
-                      title={color.name}
+          {/* AI Generator Panel */}
+          {activeView === 'ai' && (
+            <div className="flex-1 p-4 sm:p-6 overflow-auto">
+              <Card className="max-w-2xl mx-auto">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    One-Prompt Resume Generator
+                  </CardTitle>
+                  <CardDescription>
+                    Describe your background and target role, and AI will generate a complete professional resume for you.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Describe Your Background</Label>
+                    <Textarea
+                      placeholder="Example: I'm a software engineer with 5 years of experience in Python and JavaScript. I've worked at a startup building e-commerce platforms and led a team of 3 developers. I have a BS in Computer Science from MIT. I'm looking for a senior engineering role at a tech company focused on AI/ML."
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      rows={8}
+                      className="resize-none"
                     />
-                  ))}
-                </div>
+                    <p className="text-xs text-muted-foreground">
+                      Include: job history, skills, education, achievements, and target role
+                    </p>
+                  </div>
 
-                {/* Show Photo Toggle */}
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <Label htmlFor="show-photo" className="text-xs">Photo</Label>
-                  <Switch
-                    id="show-photo"
-                    checked={config.showPhoto}
-                    onCheckedChange={(checked) => setConfig({ ...config, showPhoto: checked })}
-                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleAIGenerate}
+                      disabled={isAiGenerating || !aiPrompt.trim()}
+                      className="flex-1 gap-2"
+                    >
+                      {isAiGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Generating Resume...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Generate My Resume
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium mb-2 text-sm">Quick Examples:</h4>
+                    <div className="grid gap-2">
+                      {[
+                        "Marketing manager with 7 years experience in digital marketing, SEO, and content strategy. Led campaigns that generated $2M in revenue. MBA from Columbia. Looking for Director role.",
+                        "Recent CS graduate from Stanford with internships at Google and Meta. Strong in algorithms, machine learning, and full-stack development. Looking for entry-level SWE role.",
+                        "HR professional with 10 years experience in talent acquisition and employee development. SHRM certified. Looking for HR Director position at a Fortune 500 company."
+                      ].map((example, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setAiPrompt(example)}
+                          className="text-left text-xs p-2 rounded bg-muted/50 hover:bg-muted transition-colors"
+                        >
+                          {example.slice(0, 100)}...
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Editor Panel */}
+          {activeView === 'editor' && (
+            <div className="flex-1 lg:w-1/2 border-r border-border/50 flex flex-col overflow-hidden">
+              {/* Template & Color Settings */}
+              <div className="p-3 border-b border-border/50 bg-muted/30 shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Template Selector */}
+                  <Select
+                    value={config.template}
+                    onValueChange={(v) => setConfig({ ...config, template: v as ResumeTemplate })}
+                  >
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <Layout className="w-3.5 h-3.5 mr-1.5" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <div className="flex items-center gap-2">
+                            <opt.icon className="w-4 h-4" />
+                            <span>{opt.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Color Picker */}
+                  <div className="flex items-center gap-1">
+                    {COLOR_PRESETS.slice(0, 6).map((color) => (
+                      <button
+                        key={color.value}
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110",
+                          config.primaryColor === color.value ? "border-foreground scale-110" : "border-transparent"
+                        )}
+                        style={{ backgroundColor: color.value }}
+                        onClick={() => setConfig({ ...config, primaryColor: color.value })}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Show Photo Toggle */}
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Label htmlFor="show-photo" className="text-xs">Photo</Label>
+                    <Switch
+                      id="show-photo"
+                      checked={config.showPhoto}
+                      onCheckedChange={(checked) => setConfig({ ...config, showPhoto: checked })}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Editor */}
-            <div className="flex-1 overflow-hidden">
-              <ResumeEditor
-                data={data}
-                onChange={setData}
-                onAIEnhance={handleAIEnhance}
-                isEnhancing={isEnhancing}
-              />
+              {/* Editor */}
+              <div className="flex-1 overflow-hidden">
+                <ResumeEditor
+                  data={data}
+                  onChange={setData}
+                  onAIEnhance={handleAIEnhance}
+                  isEnhancing={isEnhancing}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Preview Panel */}
+          {/* Preview Panel - Always visible on desktop when in editor mode */}
           <div className={cn(
             "lg:w-1/2 flex-1 overflow-hidden bg-muted/20",
-            activeView !== 'preview' && "hidden lg:block"
+            activeView === 'ai' && "hidden lg:hidden",
+            activeView === 'editor' && "hidden lg:block",
+            activeView === 'preview' && "block"
           )}>
             <ResumePreview ref={previewRef} data={data} config={config} />
           </div>
