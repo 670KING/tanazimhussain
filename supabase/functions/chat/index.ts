@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 
-// All FREE text models with fallback order
+// All FREE text models with fallback order - prioritized by reliability
 const FREE_TEXT_MODELS = [
   { id: 'mimo-flash', name: 'xiaomi/mimo-v2-flash:free', context: 262000 },
   { id: 'devstral', name: 'mistralai/devstral-2-2512:free', context: 262000 },
@@ -91,6 +91,27 @@ Guidelines:
 - Include relevant examples and explanations
 - Format for easy reading with proper paragraphs
 
+**CRITICAL Math Formatting Rules:**
+When including mathematical content, you MUST use proper LaTeX syntax:
+- Inline math: Use single dollar signs like $x^2 + y^2 = r^2$
+- Display/block math: Use double dollar signs on their own lines:
+
+$$
+\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
+$$
+
+- For matrices, ALWAYS use proper bmatrix syntax:
+
+$$
+A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}
+$$
+
+- Use \\frac{num}{denom} for fractions
+- Use \\sqrt{x} for square roots
+- Use \\int, \\sum, \\prod for integrals, sums, products
+- Use \\\\ for new rows in matrices (NOT single \\)
+- Use & to separate columns in matrices
+
 Generate comprehensive, publication-ready content.`;
 
     case 'vision':
@@ -99,11 +120,30 @@ Generate comprehensive, publication-ready content.`;
 1. Describe what you see in detail
 2. Identify key elements, text, objects, people, or patterns
 3. For documents/text: Extract and transcribe the content accurately
-4. For math/diagrams: Explain the concepts shown
+4. For math/diagrams: Explain the concepts shown using proper LaTeX notation
 5. For photos: Describe the scene, context, and any notable details
 6. For charts/graphs: Interpret the data and trends
 
+When writing mathematical expressions found in images, use proper LaTeX:
+- Inline: $equation$
+- Block: $$equation$$
+- Matrices: $$\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}$$
+
 Be thorough, accurate, and helpful in your analysis.`;
+
+    case 'resume':
+      return `You are TanoAI Resume Writer, an expert professional resume consultant. Help users create impactful, ATS-friendly resume content.
+
+Guidelines:
+- Use strong action verbs (Led, Developed, Implemented, Achieved)
+- Quantify achievements with metrics where possible
+- Keep bullet points concise (1-2 lines max)
+- Focus on impact and results, not just duties
+- Use industry-appropriate keywords
+- Maintain professional, confident tone
+- Avoid clichés like "team player" or "hard worker"
+
+Return only the improved text, nothing else.`;
 
     default:
       return `You are TanoAI, an advanced intelligent academic assistant powered by state-of-the-art AI. You help students with:
@@ -124,29 +164,45 @@ Be thorough, accurate, and helpful in your analysis.`;
 - Use > blockquotes for definitions or important notes
 - Use tables when comparing information
 
-**Math Equations (IMPORTANT):**
-- For inline math, use single dollar signs: $x^2 + y^2 = r^2$
-- For block/display math, use double dollar signs on separate lines:
+**CRITICAL - Math Equations (ALWAYS follow these rules):**
+
+For inline math, use single dollar signs:
+$x^2 + y^2 = r^2$
+
+For block/display math, use double dollar signs on SEPARATE LINES:
 
 $$
 \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
 $$
 
-- For matrices, use \\begin{bmatrix}...\\end{bmatrix} inside $$ $$:
+For matrices, ALWAYS use \\begin{bmatrix}...\\end{bmatrix} inside $$ $$:
 
 $$
 A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}
 $$
 
-- Always use proper LaTeX syntax for fractions (\\frac), square roots (\\sqrt), integrals (\\int), summations (\\sum), etc.
-- Use \\\\ for new lines in matrices
+**Matrix multiplication example:**
+Let $A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}$ and $B = \\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix}$
+
+$$
+AB = \\begin{bmatrix} 1 \\cdot 5 + 2 \\cdot 7 & 1 \\cdot 6 + 2 \\cdot 8 \\\\ 3 \\cdot 5 + 4 \\cdot 7 & 3 \\cdot 6 + 4 \\cdot 8 \\end{bmatrix} = \\begin{bmatrix} 19 & 22 \\\\ 43 & 50 \\end{bmatrix}
+$$
+
+Rules:
+- Use \\frac{a}{b} for fractions (NOT a/b in complex expressions)
+- Use \\sqrt{x} for square roots
 - Use \\cdot for multiplication dots
+- Use \\\\ for new lines in matrices
+- Use & to separate columns in matrices
+- NEVER use single backslash before begin/end - always use proper LaTeX
 
 Be helpful, accurate, and educational. Explain concepts clearly with examples.`;
   }
 };
 
 async function callModel(modelName: string, messages: any[], stream: boolean, temperature: number, maxTokens: number = 8192) {
+  console.log(`Calling model: ${modelName} with maxTokens: ${maxTokens}`);
+  
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -214,11 +270,14 @@ serve(async (req) => {
 - Title: ${pdfOptions.title || 'Untitled'}
 - Type: ${pdfOptions.type}
 - Style: ${pdfOptions.style}
-- Length: ${pdfOptions.length === 'short' ? '500-1000 words' : pdfOptions.length === 'medium' ? '1500-2500 words' : '3000+ words'}`;
+- Length: ${pdfOptions.length === 'short' ? '500-1000 words' : pdfOptions.length === 'medium' ? '1500-2500 words' : '3000+ words'}
+
+IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code or escaped characters that won't render properly.`;
     }
 
     const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : 0.7;
-    const tokenLimit = pdfOptions?.length === 'long' ? 16384 : maxTokens;
+    // Support much longer context for PDF and long responses
+    const tokenLimit = pdfOptions?.length === 'long' ? 32768 : maxTokens > 8192 ? maxTokens : 16384;
 
     // Build messages with images if present
     let fullMessages: any[];
@@ -273,8 +332,8 @@ serve(async (req) => {
           break;
         }
         
-        // Limit fallback attempts
-        if (attempts >= 5) {
+        // Limit fallback attempts to avoid excessive delays
+        if (attempts >= 6) {
           console.log('Max fallback attempts reached');
           break;
         }
@@ -287,8 +346,9 @@ serve(async (req) => {
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ 
-          error: 'All AI models are currently rate limited. Please try again in a few moments.',
-          tried_models: attempts
+          error: 'All AI models are currently busy. Please try again in a few moments.',
+          tried_models: attempts,
+          suggestion: 'Wait 30 seconds and try again'
         }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -297,7 +357,8 @@ serve(async (req) => {
       
       return new Response(JSON.stringify({ 
         error: 'AI service temporarily unavailable. Please try again.',
-        tried_models: attempts
+        tried_models: attempts,
+        suggestion: 'Try a different model or refresh the page'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -309,13 +370,15 @@ serve(async (req) => {
       headers.set('Content-Type', 'text/event-stream');
       headers.set('X-Model-Used', usedModel);
       headers.set('X-Vision-Mode', String(isVisionRequest));
+      headers.set('X-Attempts', String(attempts));
       return new Response(response.body, { headers });
     } else {
       const data = await response.json();
       return new Response(JSON.stringify({ 
         ...data, 
         model_used: usedModel,
-        vision_mode: isVisionRequest 
+        vision_mode: isVisionRequest,
+        attempts 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

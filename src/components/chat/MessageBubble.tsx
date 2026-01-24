@@ -3,12 +3,55 @@ import { Message } from '@/hooks/useChat';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MessageActions } from './MessageActions';
 import { StreamingIndicator } from './TypingIndicator';
-import { Bot, User, Clock } from 'lucide-react';
+import { Bot, User, Clock, ImageIcon, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface MessageBubbleProps {
   message: Message;
   onRegenerate?: () => void;
   isStreaming?: boolean;
+}
+
+// Image component with error handling
+function MessageImage({ src, alt, index }: { src: string; alt: string; index: number }) {
+  const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Reset state when src changes
+  useEffect(() => {
+    setError(false);
+    setLoaded(false);
+  }, [src]);
+
+  if (error) {
+    return (
+      <div className="w-[100px] sm:w-[150px] md:w-[200px] h-[80px] sm:h-[100px] md:h-[120px] rounded-lg bg-muted/50 border border-border flex flex-col items-center justify-center gap-1 text-muted-foreground">
+        <AlertCircle className="w-4 h-4" />
+        <span className="text-[10px]">Failed to load</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group/img">
+      {!loaded && (
+        <div className="w-[100px] sm:w-[150px] md:w-[200px] h-[80px] sm:h-[100px] md:h-[120px] rounded-lg bg-muted/50 border border-border flex items-center justify-center animate-pulse">
+          <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+        </div>
+      )}
+      <img 
+        src={src} 
+        alt={alt}
+        className={cn(
+          "max-w-[100px] sm:max-w-[150px] md:max-w-[200px] max-h-[100px] sm:max-h-[150px] md:max-h-[200px] rounded-lg object-cover border border-white/20 cursor-zoom-in hover:opacity-90 transition-opacity",
+          !loaded && "hidden"
+        )}
+        onClick={() => window.open(src, '_blank')}
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+      />
+    </div>
+  );
 }
 
 export function MessageBubble({ message, onRegenerate, isStreaming = false }: MessageBubbleProps) {
@@ -33,40 +76,41 @@ export function MessageBubble({ message, onRegenerate, isStreaming = false }: Me
       {/* Message content */}
       <div
         className={cn(
-          'rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[88%] sm:max-w-[85%] md:max-w-[80%] relative transition-all duration-200',
+          'rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[88%] sm:max-w-[85%] md:max-w-[80%] relative transition-all duration-200 overflow-hidden',
           isUser
             ? 'bg-primary text-primary-foreground rounded-tr-md shadow-sm'
             : 'bg-muted/80 rounded-tl-md border border-border/50 hover:border-border'
         )}
       >
-        {/* User images */}
+        {/* User images with error handling */}
         {isUser && message.images && message.images.length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-2 sm:mb-3">
             {message.images.map((img, index) => (
-              <div key={index} className="relative group/img">
-                <img 
-                  src={img} 
-                  alt={`Attached ${index + 1}`} 
-                  className="max-w-[100px] sm:max-w-[150px] md:max-w-[200px] max-h-[100px] sm:max-h-[150px] md:max-h-[200px] rounded-lg object-cover border border-white/20 cursor-zoom-in hover:opacity-90 transition-opacity"
-                  onClick={() => window.open(img, '_blank')}
-                />
-              </div>
+              <MessageImage 
+                key={`${message.id}-img-${index}`}
+                src={img} 
+                alt={`Attached ${index + 1}`} 
+                index={index}
+              />
             ))}
           </div>
         )}
 
         {/* Message content */}
         {isUser ? (
-          <div className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed">
+          <div className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed overflow-hidden">
             {message.content}
           </div>
         ) : (
-          <div className="relative">
-            <MarkdownRenderer 
-              content={message.content} 
-              className="text-xs sm:text-sm" 
-            />
-            <StreamingIndicator isStreaming={isStreaming && !message.content} />
+          <div className="relative overflow-hidden">
+            {message.content ? (
+              <MarkdownRenderer 
+                content={message.content} 
+                className="text-xs sm:text-sm" 
+              />
+            ) : (
+              <StreamingIndicator isStreaming={isStreaming} />
+            )}
           </div>
         )}
         
@@ -84,7 +128,7 @@ export function MessageBubble({ message, onRegenerate, isStreaming = false }: Me
               })}
             </span>
             {message.model && !isUser && (
-              <span className="hidden sm:inline">
+              <span className="hidden sm:inline truncate max-w-[100px]">
                 • {message.model.split('/')[0]}
               </span>
             )}

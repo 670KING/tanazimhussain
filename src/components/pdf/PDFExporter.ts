@@ -42,7 +42,7 @@ function parseContent(content: string): ContentSection[] {
       sections.push({
         type: 'heading',
         level: headingMatch[1].length,
-        content: cleanMarkdown(headingMatch[2]),
+        content: cleanMarkdown(latexToHumanReadable(headingMatch[2])),
       });
       i++;
       continue;
@@ -62,22 +62,42 @@ function parseContent(content: string): ContentSection[] {
     }
 
     // Math blocks ($$...$$)
-    if (line.startsWith('$$') || line.includes('\\begin{')) {
-      let mathContent = line.startsWith('$$') ? line.substring(2) : line;
-      if (!line.endsWith('$$') || line === '$$') {
-        i++;
-        while (i < lines.length && !lines[i].endsWith('$$') && !lines[i].includes('\\end{')) {
-          mathContent += '\n' + lines[i];
+    if (line.trim().startsWith('$$') || line.includes('\\begin{')) {
+      let mathContent = '';
+      
+      // Check if it's a single-line math block
+      if (line.trim().startsWith('$$') && line.trim().endsWith('$$') && line.trim().length > 4) {
+        mathContent = line.trim().slice(2, -2);
+      } else {
+        // Multi-line math block
+        if (line.trim() === '$$') {
+          i++;
+        } else {
+          mathContent = line.replace(/^\$\$/, '');
+        }
+        
+        while (i < lines.length) {
+          const currentLine = lines[i];
+          if (currentLine.trim() === '$$' || currentLine.trim().endsWith('$$')) {
+            if (currentLine.trim() !== '$$') {
+              mathContent += '\n' + currentLine.replace(/\$\$$/, '');
+            }
+            break;
+          }
+          if (currentLine.includes('\\end{')) {
+            mathContent += '\n' + currentLine;
+            break;
+          }
+          mathContent += '\n' + currentLine;
           i++;
         }
-        if (i < lines.length) {
-          mathContent += '\n' + lines[i].replace(/\$\$$/, '');
-        }
-      } else {
-        mathContent = line.substring(2, line.length - 2);
       }
-      // Convert to human-readable
-      sections.push({ type: 'math', content: latexToHumanReadable(mathContent.trim()) });
+      
+      // Convert to human-readable format
+      const humanReadable = latexToHumanReadable(mathContent.trim());
+      if (humanReadable) {
+        sections.push({ type: 'math', content: humanReadable });
+      }
       i++;
       continue;
     }
@@ -98,7 +118,7 @@ function parseContent(content: string): ContentSection[] {
         quoteContent += '\n' + lines[i].substring(1).trim();
         i++;
       }
-      sections.push({ type: 'quote', content: cleanMarkdown(quoteContent) });
+      sections.push({ type: 'quote', content: cleanMarkdown(latexToHumanReadable(quoteContent)) });
       continue;
     }
 
@@ -114,10 +134,13 @@ function parseContent(content: string): ContentSection[] {
       continue;
     }
 
-    // Regular paragraph
+    // Regular paragraph - collect until we hit something special
     let paragraphContent = line;
     i++;
-    while (i < lines.length && lines[i].trim() && !lines[i].match(/^[#\-\*\d>`\$]/) && !lines[i].startsWith('```')) {
+    while (i < lines.length && lines[i].trim() && 
+           !lines[i].match(/^[#\-\*\d>`\$]/) && 
+           !lines[i].startsWith('```') &&
+           !lines[i].includes('\\begin{')) {
       paragraphContent += ' ' + lines[i];
       i++;
     }
@@ -267,8 +290,13 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
     for (const heading of headings) {
       const indent = (heading.level - 1) * 5;
       const prefix = heading.level === 1 ? '•' : heading.level === 2 ? '◦' : '‣';
-      doc.text(`${prefix} ${heading.text}`, margins.left + indent, y);
+      const tocLine = doc.splitTextToSize(`${prefix} ${heading.text}`, contentWidth - indent);
+      doc.text(tocLine[0], margins.left + indent, y);
       y += 5;
+      
+      if (y > pageHeight - 50) {
+        addPage();
+      }
     }
     
     y += 10;
@@ -340,7 +368,8 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         doc.setFontSize(fontSize.body - 1);
         
         const codeLines = doc.splitTextToSize(section.content, contentWidth - 10);
-        const boxHeight = Math.min(codeLines.length * 4 + 8, 80);
+        const displayLines = codeLines.slice(0, 25); // Limit code display
+        const boxHeight = Math.min(displayLines.length * 4 + 8, 100);
         
         // Code background
         doc.setFillColor(...theme.colors.codeBg);
@@ -351,28 +380,35 @@ export async function generateUltraPDF(options: ExportOptions): Promise<Blob> {
         }
         
         setColor(theme.colors.code);
-        // Limit lines shown
-        const displayLines = codeLines.slice(0, 18);
         doc.text(displayLines, margins.left + 4, y + 4);
+        
+        if (codeLines.length > 25) {
+          doc.setFontSize(fontSize.caption);
+          setColor(theme.colors.muted);
+          doc.text(`... (${codeLines.length - 25} more lines)`, margins.left + 4, y + boxHeight - 4);
+        }
+        
         y += boxHeight + 6;
         break;
       }
 
       case 'math': {
-        // Math block - now human readable
+        // Math block - human readable format
         doc.setFont(theme.fonts.body, 'normal');
         doc.setFontSize(fontSize.body);
         setColor(theme.colors.accent);
         
-        const mathLines = doc.splitTextToSize(section.content, contentWidth - 20);
+        const mathLines = section.content.split('\n');
         
-        // Center math
         for (const line of mathLines) {
           if (y > pageHeight - margins.bottom) {
             addPage();
           }
+          
+          // Center math content
           const textWidth = doc.getTextWidth(line);
-          doc.text(line, (pageWidth - textWidth) / 2, y);
+          const xPos = Math.max(margins.left, (pageWidth - textWidth) / 2);
+          doc.text(line, xPos, y);
           y += fontSize.body * 0.6;
         }
         y += 6;
@@ -483,6 +519,7 @@ export function exportAsLaTeX(options: ExportOptions): string {
 \\usepackage[utf8]{inputenc}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
+\\usepackage{amsfonts}
 \\usepackage{hyperref}
 \\usepackage{listings}
 \\usepackage{geometry}
@@ -500,29 +537,29 @@ export function exportAsLaTeX(options: ExportOptions): string {
   // Convert markdown to LaTeX
   let content = options.content;
   
-  // Headings
+  // Convert headers
   content = content.replace(/^### (.+)$/gm, '\\subsubsection{$1}');
   content = content.replace(/^## (.+)$/gm, '\\subsection{$1}');
   content = content.replace(/^# (.+)$/gm, '\\section{$1}');
   
-  // Bold and italic
+  // Convert bold and italic
   content = content.replace(/\*\*(.+?)\*\*/g, '\\textbf{$1}');
   content = content.replace(/\*(.+?)\*/g, '\\textit{$1}');
   
-  // Inline code
-  content = content.replace(/`([^`]+)`/g, '\\texttt{$1}');
-  
-  // Code blocks
+  // Convert code blocks
   content = content.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     return `\\begin{lstlisting}[language=${lang || 'text'}]\n${code}\\end{lstlisting}`;
   });
   
-  // Math blocks
-  content = content.replace(/\$\$([\s\S]*?)\$\$/g, '\\[\n$1\n\\]');
+  // Convert inline code
+  content = content.replace(/`([^`]+)`/g, '\\texttt{$1}');
   
-  // Lists
-  content = content.replace(/^- (.+)$/gm, '\\item $1');
-  content = content.replace(/(\\item .+\n)+/g, '\\begin{itemize}\n$&\\end{itemize}\n');
+  // Convert bullet points
+  content = content.replace(/^[\-\*] (.+)$/gm, '\\item $1');
+  
+  // Wrap lists
+  const listPattern = /((?:\\item .+\n?)+)/g;
+  content = content.replace(listPattern, '\\begin{itemize}\n$1\\end{itemize}\n');
   
   latex += content;
   latex += '\n\\end{document}';
@@ -532,26 +569,22 @@ export function exportAsLaTeX(options: ExportOptions): string {
 
 // Export as plain text with human-readable math
 export function exportAsText(options: ExportOptions): string {
-  let text = options.content;
+  const header = `${options.title}\nGenerated by TanoAI on ${new Date().toLocaleDateString()}\n${'='.repeat(50)}\n\n`;
   
-  // Convert math to human readable
-  text = latexToHumanReadable(text);
+  // Convert math to human readable and clean markdown
+  let content = latexToHumanReadable(options.content);
+  content = cleanMarkdown(content);
   
-  // Remove markdown formatting
-  text = cleanMarkdown(text);
-  
-  return `${options.title}\n${'='.repeat(options.title.length)}\n\nGenerated by TanoAI on ${new Date().toLocaleDateString()}\n\n${text}`;
+  return header + content;
 }
 
-// Download helper
-export function downloadFile(blob: Blob | string, filename: string, mimeType: string) {
-  const data = typeof blob === 'string' ? new Blob([blob], { type: mimeType }) : blob;
-  const url = URL.createObjectURL(data);
+// Helper to download file
+export function downloadFile(content: Blob | string, filename: string, mimeType: string) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
-  document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
