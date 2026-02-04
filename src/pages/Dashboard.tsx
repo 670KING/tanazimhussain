@@ -48,6 +48,7 @@ export default function Dashboard() {
     deleteConversation,
     clearCurrentChat,
     regenerateLastMessage,
+    continueResponse,
   } = useChat();
 
   const [input, setInput] = useState('');
@@ -358,9 +359,15 @@ export default function Dashboard() {
                       key={message.id} 
                       message={message} 
                       isStreaming={isLoading && index === messages.length - 1 && message.role === 'assistant'}
+                      isLastAssistant={message.role === 'assistant' && index === messages.length - 1}
                       onRegenerate={
                         message.role === 'assistant' && index === messages.length - 1
                           ? () => regenerateLastMessage(selectedModel)
+                          : undefined
+                      }
+                      onContinue={
+                        message.role === 'assistant' && index === messages.length - 1
+                          ? () => continueResponse(selectedModel)
                           : undefined
                       }
                     />

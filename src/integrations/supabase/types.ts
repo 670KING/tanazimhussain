@@ -166,6 +166,39 @@ export type Database = {
         }
         Relationships: []
       }
+      resumes: {
+        Row: {
+          config: Json
+          created_at: string
+          data: Json
+          id: string
+          photo_url: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          data?: Json
+          id?: string
+          photo_url?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          data?: Json
+          id?: string
+          photo_url?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       study_plans: {
         Row: {
           created_at: string

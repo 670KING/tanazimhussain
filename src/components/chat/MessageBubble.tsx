@@ -3,34 +3,81 @@ import { Message } from '@/hooks/useChat';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MessageActions } from './MessageActions';
 import { StreamingIndicator } from './TypingIndicator';
-import { Bot, User, Clock, ImageIcon, AlertCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { ContinueButton } from './ContinueButton';
+import { Bot, User, Clock, ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { isResponseTruncated } from '@/lib/math-utils';
 
 interface MessageBubbleProps {
   message: Message;
   onRegenerate?: () => void;
+  onContinue?: () => Promise<string | void>;
   isStreaming?: boolean;
+  isLastAssistant?: boolean;
 }
 
-// Image component with error handling
+// Image component with robust error handling and retry
 function MessageImage({ src, alt, index }: { src: string; alt: string; index: number }) {
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Reset state when src changes
   useEffect(() => {
     setError(false);
     setLoaded(false);
+    setRetryCount(0);
   }, [src]);
+
+  const handleRetry = useCallback(() => {
+    if (retryCount < 3) {
+      setError(false);
+      setLoaded(false);
+      setRetryCount(prev => prev + 1);
+    }
+  }, [retryCount]);
+
+  const handleError = useCallback(() => {
+    // For base64 images, check if the data is valid
+    if (src.startsWith('data:image/')) {
+      // Base64 image - might be corrupted
+      setError(true);
+    } else {
+      // URL image - might be a temporary network issue
+      if (retryCount < 2) {
+        // Auto-retry once after a short delay
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          setError(false);
+        }, 1000);
+      } else {
+        setError(true);
+      }
+    }
+  }, [src, retryCount]);
 
   if (error) {
     return (
-      <div className="w-[100px] sm:w-[150px] md:w-[200px] h-[80px] sm:h-[100px] md:h-[120px] rounded-lg bg-muted/50 border border-border flex flex-col items-center justify-center gap-1 text-muted-foreground">
+      <div 
+        className="w-[100px] sm:w-[150px] md:w-[200px] h-[80px] sm:h-[100px] md:h-[120px] rounded-lg bg-muted/50 border border-border flex flex-col items-center justify-center gap-1.5 text-muted-foreground cursor-pointer hover:bg-muted/70 transition-colors"
+        onClick={handleRetry}
+        title="Click to retry"
+      >
         <AlertCircle className="w-4 h-4" />
         <span className="text-[10px]">Failed to load</span>
+        {retryCount < 3 && (
+          <span className="text-[9px] flex items-center gap-1 text-primary">
+            <RefreshCw className="w-2.5 h-2.5" /> Tap to retry
+          </span>
+        )}
       </div>
     );
   }
+
+  // Add cache-busting for retries
+  const imageSrc = retryCount > 0 && !src.startsWith('data:') 
+    ? `${src}${src.includes('?') ? '&' : '?'}retry=${retryCount}` 
+    : src;
 
   return (
     <div className="relative group/img">
@@ -40,7 +87,7 @@ function MessageImage({ src, alt, index }: { src: string; alt: string; index: nu
         </div>
       )}
       <img 
-        src={src} 
+        src={imageSrc} 
         alt={alt}
         className={cn(
           "max-w-[100px] sm:max-w-[150px] md:max-w-[200px] max-h-[100px] sm:max-h-[150px] md:max-h-[200px] rounded-lg object-cover border border-white/20 cursor-zoom-in hover:opacity-90 transition-opacity",
@@ -48,14 +95,22 @@ function MessageImage({ src, alt, index }: { src: string; alt: string; index: nu
         )}
         onClick={() => window.open(src, '_blank')}
         onLoad={() => setLoaded(true)}
-        onError={() => setError(true)}
+        onError={handleError}
+        crossOrigin="anonymous"
       />
     </div>
   );
 }
 
-export function MessageBubble({ message, onRegenerate, isStreaming = false }: MessageBubbleProps) {
+export function MessageBubble({ 
+  message, 
+  onRegenerate, 
+  onContinue,
+  isStreaming = false,
+  isLastAssistant = false
+}: MessageBubbleProps) {
   const isUser = message.role === 'user';
+  const isTruncated = !isUser && isLastAssistant && !isStreaming && isResponseTruncated(message.content);
 
   return (
     <div className={cn('flex items-start gap-2 sm:gap-3 group', isUser && 'flex-row-reverse')}>
@@ -104,10 +159,16 @@ export function MessageBubble({ message, onRegenerate, isStreaming = false }: Me
         ) : (
           <div className="relative overflow-hidden">
             {message.content ? (
-              <MarkdownRenderer 
-                content={message.content} 
-                className="text-xs sm:text-sm" 
-              />
+              <>
+                <MarkdownRenderer 
+                  content={message.content} 
+                  className="text-xs sm:text-sm" 
+                />
+                {/* Continue button for truncated responses */}
+                {isTruncated && onContinue && (
+                  <ContinueButton onContinue={onContinue} />
+                )}
+              </>
             ) : (
               <StreamingIndicator isStreaming={isStreaming} />
             )}

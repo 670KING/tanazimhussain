@@ -8,14 +8,18 @@ import {
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  Share2
+  Share2,
+  FileImage,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { quickDownloadPDF } from '@/components/pdf/UltraPDFGenerator';
+import { exportRenderedPDF } from './RenderedPDFExport';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -32,6 +36,7 @@ export function MessageActions({
 }: MessageActionsProps) {
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState<boolean | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(content);
@@ -54,9 +59,20 @@ export function MessageActions({
   const downloadAsPDF = async () => {
     try {
       await quickDownloadPDF(content, 'TanoAI_Response');
-      toast.success('Downloaded as PDF');
     } catch (error) {
       toast.error('Failed to generate PDF');
+    }
+  };
+
+  const downloadAsRenderedPDF = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportRenderedPDF(content, 'TanoAI_Response');
+    } catch (error) {
+      // Error already shown in exportRenderedPDF
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -96,18 +112,27 @@ export function MessageActions({
       {/* Download dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="h-7 w-7">
-            <Download className="w-3.5 h-3.5" />
+          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isExporting}>
+            {isExporting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={downloadAsText}>
-            <FileText className="w-4 h-4 mr-2" />
-            Download as Text
+          <DropdownMenuItem onClick={downloadAsRenderedPDF} disabled={isExporting}>
+            <FileImage className="w-4 h-4 mr-2" />
+            PDF with Compiled Math (Best)
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={downloadAsPDF}>
             <FileText className="w-4 h-4 mr-2" />
-            Download as PDF
+            PDF (Text-based)
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={downloadAsText}>
+            <FileText className="w-4 h-4 mr-2" />
+            Plain Text
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
