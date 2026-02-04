@@ -320,6 +320,108 @@ export function useChat() {
     return assistantContent;
   };
 
+  // Continue a truncated response
+  const continueResponse = async (model: string = DEFAULT_MODEL): Promise<string> => {
+    if (messages.length === 0) return '';
+    
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'assistant') return '';
+    
+    setIsLoading(true);
+    
+    try {
+      // Send a continue request with context
+      const continueMessages = [
+        ...messages.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: messages[messages.length - 2]?.content || '' },
+        { role: 'assistant' as const, content: lastMessage.content },
+        { role: 'user' as const, content: 'Please continue from where you left off. Do not repeat what you already said, just continue the response.' }
+      ];
+
+      const response = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ 
+          messages: continueMessages, 
+          model, 
+          stream: true, 
+          type: 'chat',
+          maxTokens: 16384
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to continue response');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let continuedContent = lastMessage.content;
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              continuedContent += content;
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === lastMessage.id
+                    ? { ...m, content: continuedContent }
+                    : m
+                )
+              );
+            }
+          } catch {
+            buffer = line + '\n' + buffer;
+            break;
+          }
+        }
+      }
+
+      // Update the message in database
+      if (currentConversation) {
+        await supabase
+          .from('messages')
+          .update({ content: continuedContent })
+          .eq('conversation_id', currentConversation.id)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1);
+      }
+
+      toast.success('Response continued');
+      return continuedContent;
+    } catch (error) {
+      console.error('Continue error:', error);
+      toast.error('Failed to continue response');
+      return lastMessage.content;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const regenerateLastMessage = async (model: string = DEFAULT_MODEL) => {
     if (messages.length < 2) return;
     
@@ -374,5 +476,6 @@ export function useChat() {
     deleteConversation,
     clearCurrentChat,
     regenerateLastMessage,
+    continueResponse,
   };
 }

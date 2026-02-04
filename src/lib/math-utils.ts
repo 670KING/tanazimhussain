@@ -1,40 +1,99 @@
 // Utility functions for converting LaTeX math to human-readable format
 
+// Common LaTeX commands that need proper escaping
+const LATEX_COMMANDS = [
+  'frac', 'begin', 'end', 'left', 'right', 'sqrt', 'sum', 'int', 'prod', 'lim',
+  'cdot', 'times', 'div', 'pm', 'mp', 'leq', 'geq', 'neq', 'approx', 'equiv',
+  'sim', 'subset', 'supset', 'in', 'notin', 'cup', 'cap', 'land', 'lor', 'neg',
+  'forall', 'exists', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta',
+  'lambda', 'mu', 'pi', 'sigma', 'omega', 'infty', 'partial', 'nabla',
+  'bmatrix', 'pmatrix', 'matrix', 'vmatrix', 'Bmatrix', 'cases', 'align',
+  'aligned', 'equation', 'array', 'gather', 'text', 'mathbf', 'mathrm', 'vec',
+  'hat', 'bar', 'dot', 'ddot', 'overline', 'underline', 'sin', 'cos', 'tan',
+  'log', 'ln', 'exp', 'det', 'mod', 'gcd', 'min', 'max', 'sup', 'inf', 'limsup',
+  'liminf', 'oplus', 'otimes', 'circ', 'bullet', 'star', 'dagger', 'ddagger'
+];
+
+const LATEX_PATTERN = LATEX_COMMANDS.join('|');
+
 /**
  * Advanced preprocessing for LaTeX content before rendering
  * Fixes common AI-generated LaTeX issues
  */
 export function preprocessLatex(content: string): string {
+  if (!content) return '';
+  
   let result = content;
   
-  // Fix multiple levels of escaped backslashes (\\\\frac -> \frac, \\frac -> \frac)
-  result = result.replace(/\\\\\\\\(frac|begin|end|left|right|sqrt|sum|int|prod|lim|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|sim|subset|supset|in|notin|cup|cap|land|lor|neg|forall|exists|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla|bmatrix|pmatrix|matrix|vmatrix|Bmatrix|cases|align|aligned|equation|array|gather|text|mathbf|mathrm|vec|hat|bar|dot|ddot|overline|underline)/gi, '\\$1');
-  result = result.replace(/\\\\(frac|begin|end|left|right|sqrt|sum|int|prod|lim|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|sim|subset|supset|in|notin|cup|cap|land|lor|neg|forall|exists|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla|bmatrix|pmatrix|matrix|vmatrix|Bmatrix|cases|align|aligned|equation|array|gather|text|mathbf|mathrm|vec|hat|bar|dot|ddot|overline|underline)/gi, '\\$1');
+  // Step 1: Fix multiple levels of escaped backslashes (\\\\frac -> \frac, \\frac -> \frac)
+  const escapePattern = new RegExp(`\\\\\\\\\\\\\\\\(${LATEX_PATTERN})`, 'gi');
+  result = result.replace(escapePattern, '\\$1');
   
-  // Fix quadruple backslash newlines in matrices (\\\\  -> \\)
+  const doubleEscapePattern = new RegExp(`\\\\\\\\(${LATEX_PATTERN})`, 'gi');
+  result = result.replace(doubleEscapePattern, '\\$1');
+  
+  // Step 2: Fix quadruple backslash newlines in matrices (\\\\  -> \\)
   result = result.replace(/\\\\\\\\/g, '\\\\');
   
-  // Convert \( \) to $ $ for inline math
+  // Step 3: Convert \( \) to $ $ for inline math (with better spacing)
   result = result.replace(/\\\(([^)]+)\\\)/g, ' $$$1$$ ');
   
-  // Convert \[ \] to $$ $$ for display math
+  // Step 4: Convert \[ \] to $$ $$ for display math
   result = result.replace(/\\\[([\s\S]*?)\\\]/g, '\n$$\n$1\n$$\n');
   
-  // Wrap bare \begin{...}...\end{...} blocks in $$ if not already wrapped
+  // Step 5: Wrap bare \begin{...}...\end{...} blocks in $$ if not already wrapped
   const environments = ['bmatrix', 'pmatrix', 'matrix', 'vmatrix', 'Bmatrix', 'cases', 'align', 'aligned', 'equation', 'array', 'gather'];
   for (const env of environments) {
-    const pattern = new RegExp(`(?<!\\$\\$?\\s*)\\\\begin\\{${env}\\}([\\s\\S]*?)\\\\end\\{${env}\\}(?!\\s*\\$\\$?)`, 'g');
-    result = result.replace(pattern, (match) => `\n$$\n${match}\n$$\n`);
+    // Match \begin{env}...\end{env} not already wrapped in $$
+    const pattern = new RegExp(`(?<![\\$\\n])\\s*\\\\begin\\{${env}\\}([\\s\\S]*?)\\\\end\\{${env}\\}(?![\\s\\n]*\\$)`, 'g');
+    result = result.replace(pattern, (match) => `\n$$\n${match.trim()}\n$$\n`);
   }
   
-  // Fix common AI mistakes: escaped matrix environment names
+  // Step 6: Fix common AI mistakes: escaped matrix environment names
   result = result.replace(/\\\\begin\{/g, '\\begin{');
   result = result.replace(/\\\\end\{/g, '\\end{');
   
-  // Clean up multiple newlines
+  // Step 7: Fix broken matrix row separators (sometimes AI outputs \\ instead of \\\\)
+  // Inside matrix environments, ensure proper row breaks
+  result = result.replace(/(\\begin\{[bpvBV]?matrix\}[\s\S]*?)(\\(?!\\))([\s\S]*?\\end\{[bpvBV]?matrix\})/g, 
+    (match, before, slash, after) => before + '\\\\' + after
+  );
+  
+  // Step 8: Remove extra spaces around math delimiters
+  result = result.replace(/\$\s+\$/g, '$$');
+  result = result.replace(/\$\$\s+\$\$/g, '$$$$');
+  
+  // Step 9: Clean up multiple newlines but preserve structure
   result = result.replace(/\n{4,}/g, '\n\n\n');
   
+  // Step 10: Ensure inline math has proper spacing
+  result = result.replace(/([^\s$])\$([^$]+)\$([^\s$])/g, '$1 $$$2$$ $3');
+  
   return result;
+}
+
+/**
+ * Check if a response appears to be truncated
+ */
+export function isResponseTruncated(content: string): boolean {
+  if (!content || content.length < 100) return false;
+  
+  const truncationSignals = [
+    // Ends mid-sentence (no punctuation at end)
+    /[a-zA-Z0-9,]\s*$/.test(content.trim()),
+    // Ends with incomplete code block
+    /```[a-z]*\s*\n[^`]*$/.test(content) && !/```\s*$/.test(content),
+    // Ends with incomplete math block
+    /\$\$[^$]*$/.test(content) && !/\$\$\s*$/.test(content),
+    // Ends with incomplete list item
+    /^[\-\*\d]+\.\s*\w+$/m.test(content.split('\n').slice(-1)[0] || ''),
+    // Common truncation patterns from AI
+    /\.\.\.\s*$/.test(content.trim()) && content.length > 2000,
+    // Ends abruptly without conclusion
+    content.length > 3000 && !/(\.|!|\?|```|\$\$|conclusion|summary|finally|therefore)\s*$/i.test(content.trim()),
+  ];
+  
+  return truncationSignals.filter(Boolean).length >= 2;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +15,8 @@ import jsPDF from 'jspdf';
 import { 
   FileUser, Download, Loader2, Sparkles, Eye, Edit, 
   Palette, Layout, Settings2, RefreshCw, FileText,
-  Briefcase, GraduationCap, Wand2, Send
+  Briefcase, GraduationCap, Wand2, Send, Save, FolderOpen,
+  Plus, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResumeEditor } from './ResumeEditor';
@@ -25,6 +26,15 @@ import {
   DEFAULT_RESUME_DATA, DEFAULT_RESUME_CONFIG 
 } from './types';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { useResumeStorage } from '@/hooks/useResumeStorage';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const TEMPLATE_OPTIONS: { value: ResumeTemplate; label: string; description: string; icon: React.ElementType }[] = [
   { value: 'modern', label: 'Modern Corporate', description: 'Clean, sans-serif, accent colors', icon: Briefcase },
@@ -44,6 +54,17 @@ const COLOR_PRESETS = [
 ];
 
 export function ResumeBuilder() {
+  const { user } = useAuth();
+  const {
+    resumes,
+    currentResumeId,
+    isSaving,
+    saveResume,
+    loadResume,
+    deleteResume,
+    createNewResume,
+  } = useResumeStorage();
+
   const [data, setData] = useState<ResumeData>(DEFAULT_RESUME_DATA);
   const [config, setConfig] = useState<ResumeConfig>(DEFAULT_RESUME_CONFIG);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -51,6 +72,7 @@ export function ResumeBuilder() {
   const [activeView, setActiveView] = useState<'editor' | 'preview' | 'ai'>('editor');
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [resumeTitle, setResumeTitle] = useState('My Resume');
   const previewRef = useRef<HTMLDivElement>(null);
 
   const handleAIEnhance = useCallback(async (field: string, content: string): Promise<string> => {
@@ -285,8 +307,32 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
     }
   }, [data.personalInfo.fullName]);
 
+  const handleSave = useCallback(async () => {
+    const title = data.personalInfo.fullName 
+      ? `${data.personalInfo.fullName}'s Resume`
+      : resumeTitle;
+    await saveResume(data, config, title);
+  }, [data, config, resumeTitle, saveResume]);
+
+  const handleLoadResume = useCallback(async (id: string) => {
+    const result = await loadResume(id);
+    if (result) {
+      setData(result.data);
+      setConfig(result.config);
+      setActiveView('editor');
+    }
+  }, [loadResume]);
+
+  const handleNewResume = useCallback(() => {
+    const { data: newData, config: newConfig } = createNewResume();
+    setData(newData);
+    setConfig(newConfig);
+    setAiPrompt('');
+    setActiveView('ai');
+  }, [createNewResume]);
+
   const resetResume = () => {
-    if (window.confirm('Are you sure you want to reset? All data will be lost.')) {
+    if (window.confirm('Are you sure you want to reset? All unsaved changes will be lost.')) {
       setData(DEFAULT_RESUME_DATA);
       setConfig(DEFAULT_RESUME_CONFIG);
       setAiPrompt('');
@@ -327,6 +373,20 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+
+            {/* Save Button */}
+            {user && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="gap-1.5 text-xs"
+              >
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">Save</span>
+              </Button>
+            )}
 
             <Button
               variant="outline"
