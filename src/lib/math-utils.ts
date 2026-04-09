@@ -215,8 +215,17 @@ export function latexToHumanReadable(content: string): string {
   };
   
   for (const [pattern, replacement] of replacements) {
-    result = result.replace(pattern, replacement as string);
+    result = result.replace(pattern, replacement);
   }
+  // Bracket replacements (using function replacers separately)
+  result = result.replace(/\\left\(/g, '(');
+  result = result.replace(/\\right\)/g, ')');
+  result = result.replace(/\\left\[/g, '[');
+  result = result.replace(/\\right\]/g, ']');
+  result = result.replace(/\\left\{/g, '{');
+  result = result.replace(/\\right\}/g, '}');
+  result = result.replace(/\\left\|/g, '|');
+  result = result.replace(/\\right\|/g, '|');
   for (const [name, symbol] of Object.entries(greek)) {
     result = result.replace(new RegExp(`\\\\${name}(?![a-zA-Z])`, 'g'), symbol);
   }
