@@ -1,73 +1,80 @@
 // Utility functions for converting LaTeX math to human-readable format
 
-// Common LaTeX commands that need proper escaping
-const LATEX_COMMANDS = [
-  'frac', 'begin', 'end', 'left', 'right', 'sqrt', 'sum', 'int', 'prod', 'lim',
-  'cdot', 'times', 'div', 'pm', 'mp', 'leq', 'geq', 'neq', 'approx', 'equiv',
-  'sim', 'subset', 'supset', 'in', 'notin', 'cup', 'cap', 'land', 'lor', 'neg',
-  'forall', 'exists', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta',
-  'lambda', 'mu', 'pi', 'sigma', 'omega', 'infty', 'partial', 'nabla',
-  'bmatrix', 'pmatrix', 'matrix', 'vmatrix', 'Bmatrix', 'cases', 'align',
-  'aligned', 'equation', 'array', 'gather', 'text', 'mathbf', 'mathrm', 'vec',
-  'hat', 'bar', 'dot', 'ddot', 'overline', 'underline', 'sin', 'cos', 'tan',
-  'log', 'ln', 'exp', 'det', 'mod', 'gcd', 'min', 'max', 'sup', 'inf', 'limsup',
-  'liminf', 'oplus', 'otimes', 'circ', 'bullet', 'star', 'dagger', 'ddagger'
-];
-
-const LATEX_PATTERN = LATEX_COMMANDS.join('|');
-
 /**
- * Advanced preprocessing for LaTeX content before rendering
- * Fixes common AI-generated LaTeX issues
+ * Advanced preprocessing for LaTeX content before rendering.
+ * Fixes common AI-generated LaTeX issues so KaTeX can render them.
  */
 export function preprocessLatex(content: string): string {
   if (!content) return '';
   
   let result = content;
   
-  // Step 1: Fix multiple levels of escaped backslashes (\\\\frac -> \frac, \\frac -> \frac)
-  const escapePattern = new RegExp(`\\\\\\\\\\\\\\\\(${LATEX_PATTERN})`, 'gi');
-  result = result.replace(escapePattern, '\\$1');
+  // Step 1: Convert \( \) to $ $ for inline math
+  result = result.replace(/\\\((.+?)\\\)/gs, (_, inner) => ` $${inner.trim()}$ `);
   
-  const doubleEscapePattern = new RegExp(`\\\\\\\\(${LATEX_PATTERN})`, 'gi');
-  result = result.replace(doubleEscapePattern, '\\$1');
+  // Step 2: Convert \[ \] to $$ $$ for display math  
+  result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_, inner) => `\n$$\n${inner.trim()}\n$$\n`);
   
-  // Step 2: Fix quadruple backslash newlines in matrices (\\\\  -> \\)
-  result = result.replace(/\\\\\\\\/g, '\\\\');
+  // Step 3: Fix escaped LaTeX commands inside math contexts
+  // Match content inside $...$ and $$...$$ and fix double-escaped commands
+  const fixEscapedCommands = (mathStr: string): string => {
+    // Fix \\frac -> \frac, \\begin -> \begin, etc. (double-escaped)
+    let fixed = mathStr.replace(/\\\\(frac|begin|end|sqrt|sum|int|prod|lim|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|text|mathbf|mathrm|mathbb|vec|hat|bar|overline|underline|left|right|bmatrix|pmatrix|matrix|vmatrix|Bmatrix|cases|align|aligned|equation|array|gather|sin|cos|tan|log|ln|exp|det|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega|infty|partial|nabla|forall|exists|in|notin|cup|cap|subset|supset|land|lor|neg|sim|propto|to|gets|mapsto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|Leftrightarrow|iff|implies|ldots|cdots|vdots|ddots|prime|circ|angle|perp|parallel|triangle|quad|qquad|hline|space|;|,|!|:)/g, '\\$1');
+    return fixed;
+  };
   
-  // Step 3: Convert \( \) to $ $ for inline math (with better spacing)
-  result = result.replace(/\\\(([^)]+)\\\)/g, ' $$$1$$ ');
+  // Fix commands in display math blocks
+  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+    return '$$\n' + fixEscapedCommands(inner.trim()) + '\n$$';
+  });
   
-  // Step 4: Convert \[ \] to $$ $$ for display math
-  result = result.replace(/\\\[([\s\S]*?)\\\]/g, '\n$$\n$1\n$$\n');
+  // Fix commands in inline math
+  result = result.replace(/\$([^$\n]+)\$/g, (match, inner) => {
+    if (inner.includes('\\\\') && /\\\\(frac|begin|sqrt|sum|int|cdot|alpha|beta|gamma)/.test(match)) {
+      return '$' + fixEscapedCommands(inner) + '$';
+    }
+    return match;
+  });
   
-  // Step 5: Wrap bare \begin{...}...\end{...} blocks in $$ if not already wrapped
-  const environments = ['bmatrix', 'pmatrix', 'matrix', 'vmatrix', 'Bmatrix', 'cases', 'align', 'aligned', 'equation', 'array', 'gather'];
+  // Step 4: Wrap bare \begin{env}...\end{env} blocks in $$ if not already wrapped
+  const environments = ['bmatrix', 'pmatrix', 'matrix', 'vmatrix', 'Bmatrix', 'cases', 'align', 'aligned', 'array', 'gather'];
   for (const env of environments) {
-    // Match \begin{env}...\end{env} not already wrapped in $$
-    const pattern = new RegExp(`(?<![\\$\\n])\\s*\\\\begin\\{${env}\\}([\\s\\S]*?)\\\\end\\{${env}\\}(?![\\s\\n]*\\$)`, 'g');
-    result = result.replace(pattern, (match) => `\n$$\n${match.trim()}\n$$\n`);
+    const pattern = new RegExp(`(?<!\\$\\s*\\n?)\\s*\\\\begin\\{${env}\\}([\\s\\S]*?)\\\\end\\{${env}\\}(?!\\s*\\n?\\s*\\$)`, 'g');
+    result = result.replace(pattern, (match) => {
+      // Check if already inside $$ context
+      const idx = result.indexOf(match);
+      const before = result.substring(Math.max(0, idx - 10), idx);
+      if (before.includes('$$') || before.trimEnd().endsWith('$')) return match;
+      return `\n$$\n${match.trim()}\n$$\n`;
+    });
   }
   
-  // Step 6: Fix common AI mistakes: escaped matrix environment names
+  // Step 5: Fix matrix row separators - ensure \\\\ inside matrix environments
+  result = result.replace(/(\\begin\{[bpvBV]?matrix\})([\s\S]*?)(\\end\{[bpvBV]?matrix\})/g, 
+    (_, open, inner, close) => {
+      // Normalize: replace single \\ (not \\\\) with \\\\ for row breaks
+      // But be careful not to touch \\cdot, \\frac, etc.
+      let fixed = inner;
+      // First normalize all \\\\ to a placeholder
+      fixed = fixed.replace(/\\\\\\\\/g, '⟦ROW⟧');
+      // Then convert remaining \\ followed by newline or space+digit/letter to row break
+      fixed = fixed.replace(/\\\\(?=\s*\n|\s+[0-9a-zA-Z\\-])/g, '⟦ROW⟧');
+      // Restore
+      fixed = fixed.replace(/⟦ROW⟧/g, ' \\\\ ');
+      return open + fixed + close;
+    }
+  );
+  
+  // Step 6: Fix escaped begin/end outside math contexts
   result = result.replace(/\\\\begin\{/g, '\\begin{');
   result = result.replace(/\\\\end\{/g, '\\end{');
   
-  // Step 7: Fix broken matrix row separators (sometimes AI outputs \\ instead of \\\\)
-  // Inside matrix environments, ensure proper row breaks
-  result = result.replace(/(\\begin\{[bpvBV]?matrix\}[\s\S]*?)(\\(?!\\))([\s\S]*?\\end\{[bpvBV]?matrix\})/g, 
-    (match, before, slash, after) => before + '\\\\' + after
-  );
-  
-  // Step 8: Remove extra spaces around math delimiters
-  result = result.replace(/\$\s+\$/g, '$$');
-  result = result.replace(/\$\$\s+\$\$/g, '$$$$');
-  
-  // Step 9: Clean up multiple newlines but preserve structure
+  // Step 7: Clean up multiple newlines but preserve structure
   result = result.replace(/\n{4,}/g, '\n\n\n');
   
-  // Step 10: Ensure inline math has proper spacing
-  result = result.replace(/([^\s$])\$([^$]+)\$([^\s$])/g, '$1 $$$2$$ $3');
+  // Step 8: Fix $$ that got merged onto same line as text
+  result = result.replace(/([^\n])\$\$\s*\n/g, '$1\n$$\n');
+  result = result.replace(/\n\s*\$\$([^\n$])/g, '\n$$\n$1');
   
   return result;
 }
@@ -79,17 +86,15 @@ export function isResponseTruncated(content: string): boolean {
   if (!content || content.length < 100) return false;
   
   const truncationSignals = [
-    // Ends mid-sentence (no punctuation at end)
+    // Ends mid-sentence
     /[a-zA-Z0-9,]\s*$/.test(content.trim()),
-    // Ends with incomplete code block
-    /```[a-z]*\s*\n[^`]*$/.test(content) && !/```\s*$/.test(content),
-    // Ends with incomplete math block
-    /\$\$[^$]*$/.test(content) && !/\$\$\s*$/.test(content),
-    // Ends with incomplete list item
+    // Unclosed code block
+    (content.match(/```/g) || []).length % 2 !== 0,
+    // Unclosed math block
+    (content.match(/\$\$/g) || []).length % 2 !== 0,
+    // Ends with incomplete list
     /^[\-\*\d]+\.\s*\w+$/m.test(content.split('\n').slice(-1)[0] || ''),
-    // Common truncation patterns from AI
-    /\.\.\.\s*$/.test(content.trim()) && content.length > 2000,
-    // Ends abruptly without conclusion
+    // Long content without proper ending
     content.length > 3000 && !/(\.|!|\?|```|\$\$|conclusion|summary|finally|therefore)\s*$/i.test(content.trim()),
   ];
   
@@ -106,7 +111,7 @@ export function latexToHumanReadable(content: string): string {
   result = result.replace(/\$\$/g, '');
   result = result.replace(/\$/g, '');
   
-  // Matrix handling - convert to table-like format with box-drawing characters
+  // Matrix handling
   const matrixHandler = (_: string, inner: string) => {
     const rows = inner.split('\\\\').map((row: string) => row.trim());
     const formattedRows = rows
@@ -118,7 +123,6 @@ export function latexToHumanReadable(content: string): string {
     
     if (formattedRows.length === 0) return '[ ]';
     
-    // Calculate column width for proper separator
     const firstRow = rows[0]?.split('&') || [];
     const colCount = firstRow.length;
     const colWidth = Math.max(4, ...firstRow.map(c => c.trim().length + 2));
@@ -143,7 +147,7 @@ export function latexToHumanReadable(content: string): string {
   result = result.replace(/\\begin\{vmatrix\}([\s\S]*?)\\end\{vmatrix\}/g, matrixHandler);
   result = result.replace(/\\begin\{matrix\}([\s\S]*?)\\end\{matrix\}/g, matrixHandler);
   
-  // Cases environment
+  // Cases
   result = result.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (_, inner) => {
     const rows = inner.split('\\\\').map((row: string) => row.trim());
     const formattedRows = rows
@@ -152,7 +156,7 @@ export function latexToHumanReadable(content: string): string {
     return '\n{\n' + formattedRows.join('\n') + '\n}\n';
   });
   
-  // Fractions - handle nested fractions
+  // Fractions
   const processFractions = (str: string): string => {
     let prev = '';
     while (prev !== str) {
@@ -167,159 +171,67 @@ export function latexToHumanReadable(content: string): string {
   result = result.replace(/\\sqrt\[(\d+)\]\{([^}]+)\}/g, '$1√($2)');
   result = result.replace(/\\sqrt\{([^}]+)\}/g, '√($1)');
   
-  // Powers and subscripts
+  // Superscripts and subscripts
   result = result.replace(/\^(\{[^}]+\}|\d)/g, (_, exp) => {
     const clean = exp.replace(/[{}]/g, '');
-    // Convert to superscript unicode if simple
-    const superscripts: Record<string, string> = {
-      '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
-      '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-      'n': 'ⁿ', 'i': 'ⁱ', '+': '⁺', '-': '⁻'
-    };
+    const sup: Record<string, string> = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','i':'ⁱ','+':'⁺','-':'⁻' };
     if (clean.length <= 2 && /^[\d\+\-ni]+$/.test(clean)) {
-      return clean.split('').map(c => superscripts[c] || `^${c}`).join('');
+      return clean.split('').map(c => sup[c] || `^${c}`).join('');
     }
     return `^(${clean})`;
   });
   
   result = result.replace(/_(\{[^}]+\}|\d)/g, (_, sub) => {
     const clean = sub.replace(/[{}]/g, '');
-    // Convert to subscript unicode if simple
-    const subscripts: Record<string, string> = {
-      '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
-      '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-      'n': 'ₙ', 'i': 'ᵢ', '+': '₊', '-': '₋'
-    };
+    const subs: Record<string, string> = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','n':'ₙ','i':'ᵢ','+':'₊','-':'₋' };
     if (clean.length <= 2 && /^[\d\+\-ni]+$/.test(clean)) {
-      return clean.split('').map(c => subscripts[c] || `_${c}`).join('');
+      return clean.split('').map(c => subs[c] || `_${c}`).join('');
     }
     return `_(${clean})`;
   });
   
-  // Common operators
-  result = result.replace(/\\cdot/g, '·');
-  result = result.replace(/\\times/g, '×');
-  result = result.replace(/\\div/g, '÷');
-  result = result.replace(/\\pm/g, '±');
-  result = result.replace(/\\mp/g, '∓');
-  result = result.replace(/\\leq/g, '≤');
-  result = result.replace(/\\geq/g, '≥');
-  result = result.replace(/\\neq/g, '≠');
-  result = result.replace(/\\approx/g, '≈');
-  result = result.replace(/\\equiv/g, '≡');
-  result = result.replace(/\\sim/g, '∼');
-  result = result.replace(/\\propto/g, '∝');
-  result = result.replace(/\\to/g, '→');
-  result = result.replace(/\\gets/g, '←');
-  result = result.replace(/\\mapsto/g, '↦');
+  // Operators
+  const replacements: [RegExp, string][] = [
+    [/\\cdot/g, '·'], [/\\times/g, '×'], [/\\div/g, '÷'], [/\\pm/g, '±'], [/\\mp/g, '∓'],
+    [/\\leq/g, '≤'], [/\\geq/g, '≥'], [/\\neq/g, '≠'], [/\\approx/g, '≈'], [/\\equiv/g, '≡'],
+    [/\\sim/g, '∼'], [/\\propto/g, '∝'], [/\\to/g, '→'], [/\\gets/g, '←'], [/\\mapsto/g, '↦'],
+    [/\\int/g, '∫'], [/\\sum/g, 'Σ'], [/\\prod/g, 'Π'], [/\\partial/g, '∂'], [/\\nabla/g, '∇'],
+    [/\\infty/g, '∞'], [/\\lim/g, 'lim'],
+    [/\\in(?![a-z])/g, '∈'], [/\\notin/g, '∉'], [/\\subset/g, '⊂'], [/\\supset/g, '⊃'],
+    [/\\cup/g, '∪'], [/\\cap/g, '∩'], [/\\emptyset/g, '∅'], [/\\forall/g, '∀'], [/\\exists/g, '∃'],
+    [/\\land/g, '∧'], [/\\lor/g, '∨'], [/\\neg/g, '¬'],
+    [/\\rightarrow/g, '→'], [/\\leftarrow/g, '←'], [/\\Rightarrow/g, '⇒'], [/\\Leftarrow/g, '⇐'],
+    [/\\leftrightarrow/g, '↔'], [/\\Leftrightarrow/g, '⇔'], [/\\iff/g, '⇔'], [/\\implies/g, '⇒'],
+    [/\\left[(\[({|]/g, (_, c) => c], [/\\right[\])}|]/g, (_, c) => c],
+    [/\\langle/g, '⟨'], [/\\rangle/g, '⟩'],
+    [/\\ldots/g, '…'], [/\\cdots/g, '⋯'], [/\\vdots/g, '⋮'], [/\\ddots/g, '⋱'],
+  ];
   
-  // Greek letters (lowercase)
-  const greekLower: Record<string, string> = {
-    alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε',
-    zeta: 'ζ', eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ',
-    lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ',
-    tau: 'τ', upsilon: 'υ', phi: 'φ', varphi: 'ϕ', chi: 'χ', psi: 'ψ', omega: 'ω'
+  // Greek letters
+  const greek: Record<string, string> = {
+    alpha:'α',beta:'β',gamma:'γ',delta:'δ',epsilon:'ε',zeta:'ζ',eta:'η',theta:'θ',
+    iota:'ι',kappa:'κ',lambda:'λ',mu:'μ',nu:'ν',xi:'ξ',pi:'π',rho:'ρ',sigma:'σ',
+    tau:'τ',upsilon:'υ',phi:'φ',chi:'χ',psi:'ψ',omega:'ω',
+    Gamma:'Γ',Delta:'Δ',Theta:'Θ',Lambda:'Λ',Xi:'Ξ',Pi:'Π',Sigma:'Σ',Phi:'Φ',Psi:'Ψ',Omega:'Ω'
   };
-  for (const [name, symbol] of Object.entries(greekLower)) {
+  
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement as string);
+  }
+  for (const [name, symbol] of Object.entries(greek)) {
     result = result.replace(new RegExp(`\\\\${name}(?![a-zA-Z])`, 'g'), symbol);
   }
-  
-  // Greek letters (uppercase)
-  const greekUpper: Record<string, string> = {
-    Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ',
-    Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω'
-  };
-  for (const [name, symbol] of Object.entries(greekUpper)) {
-    result = result.replace(new RegExp(`\\\\${name}(?![a-zA-Z])`, 'g'), symbol);
-  }
-  
-  // Calculus and operators
-  result = result.replace(/\\int_\{([^}]+)\}\^\{([^}]+)\}/g, '∫[$1→$2]');
-  result = result.replace(/\\int/g, '∫');
-  result = result.replace(/\\sum_\{([^}]+)\}\^\{([^}]+)\}/g, 'Σ[$1→$2]');
-  result = result.replace(/\\sum/g, 'Σ');
-  result = result.replace(/\\prod_\{([^}]+)\}\^\{([^}]+)\}/g, 'Π[$1→$2]');
-  result = result.replace(/\\prod/g, 'Π');
-  result = result.replace(/\\partial/g, '∂');
-  result = result.replace(/\\nabla/g, '∇');
-  result = result.replace(/\\infty/g, '∞');
-  result = result.replace(/\\lim_\{([^}]+)\}/g, 'lim[$1]');
-  result = result.replace(/\\lim/g, 'lim');
-  
-  // Set theory
-  result = result.replace(/\\in/g, '∈');
-  result = result.replace(/\\notin/g, '∉');
-  result = result.replace(/\\subset/g, '⊂');
-  result = result.replace(/\\subseteq/g, '⊆');
-  result = result.replace(/\\supset/g, '⊃');
-  result = result.replace(/\\supseteq/g, '⊇');
-  result = result.replace(/\\cup/g, '∪');
-  result = result.replace(/\\cap/g, '∩');
-  result = result.replace(/\\emptyset/g, '∅');
-  result = result.replace(/\\varnothing/g, '∅');
-  result = result.replace(/\\forall/g, '∀');
-  result = result.replace(/\\exists/g, '∃');
-  result = result.replace(/\\nexists/g, '∄');
-  result = result.replace(/\\setminus/g, '\\');
-  
-  // Logic
-  result = result.replace(/\\land/g, '∧');
-  result = result.replace(/\\lor/g, '∨');
-  result = result.replace(/\\lnot/g, '¬');
-  result = result.replace(/\\neg/g, '¬');
-  result = result.replace(/\\rightarrow/g, '→');
-  result = result.replace(/\\leftarrow/g, '←');
-  result = result.replace(/\\Rightarrow/g, '⇒');
-  result = result.replace(/\\Leftarrow/g, '⇐');
-  result = result.replace(/\\leftrightarrow/g, '↔');
-  result = result.replace(/\\Leftrightarrow/g, '⇔');
-  result = result.replace(/\\iff/g, '⇔');
-  result = result.replace(/\\implies/g, '⇒');
-  
-  // Brackets and delimiters
-  result = result.replace(/\\left\(/g, '(');
-  result = result.replace(/\\right\)/g, ')');
-  result = result.replace(/\\left\[/g, '[');
-  result = result.replace(/\\right\]/g, ']');
-  result = result.replace(/\\left\{/g, '{');
-  result = result.replace(/\\right\}/g, '}');
-  result = result.replace(/\\left\|/g, '|');
-  result = result.replace(/\\right\|/g, '|');
-  result = result.replace(/\\left\\|/g, '‖');
-  result = result.replace(/\\right\\|/g, '‖');
-  result = result.replace(/\\langle/g, '⟨');
-  result = result.replace(/\\rangle/g, '⟩');
-  result = result.replace(/\\lfloor/g, '⌊');
-  result = result.replace(/\\rfloor/g, '⌋');
-  result = result.replace(/\\lceil/g, '⌈');
-  result = result.replace(/\\rceil/g, '⌉');
   
   // Text commands
   result = result.replace(/\\text\{([^}]+)\}/g, '$1');
   result = result.replace(/\\textbf\{([^}]+)\}/g, '$1');
-  result = result.replace(/\\textit\{([^}]+)\}/g, '$1');
   result = result.replace(/\\mathbf\{([^}]+)\}/g, '$1');
   result = result.replace(/\\mathrm\{([^}]+)\}/g, '$1');
   result = result.replace(/\\mathbb\{([^}]+)\}/g, '$1');
-  result = result.replace(/\\mathcal\{([^}]+)\}/g, '$1');
   
-  // Other symbols
-  result = result.replace(/\\ldots/g, '…');
-  result = result.replace(/\\cdots/g, '⋯');
-  result = result.replace(/\\vdots/g, '⋮');
-  result = result.replace(/\\ddots/g, '⋱');
-  result = result.replace(/\\prime/g, '′');
-  result = result.replace(/\\circ/g, '∘');
-  result = result.replace(/\\degree/g, '°');
-  result = result.replace(/\\angle/g, '∠');
-  result = result.replace(/\\perp/g, '⊥');
-  result = result.replace(/\\parallel/g, '∥');
-  result = result.replace(/\\triangle/g, '△');
-  result = result.replace(/\\square/g, '□');
-  
-  // Clean up remaining LaTeX artifacts
-  result = result.replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1'); // \cmd{content} -> content
-  result = result.replace(/\\[a-zA-Z]+/g, ''); // Remove remaining \commands
+  // Clean remaining
+  result = result.replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1');
+  result = result.replace(/\\[a-zA-Z]+/g, '');
   result = result.replace(/[{}]/g, '');
   result = result.replace(/\s+/g, ' ');
   result = result.replace(/\n\s*\n\s*\n/g, '\n\n');
@@ -332,38 +244,21 @@ export function latexToHumanReadable(content: string): string {
  */
 export function cleanMarkdown(content: string): string {
   let result = content;
-  
-  // Remove headers
   result = result.replace(/^#{1,6}\s+(.*)$/gm, '$1');
-  
-  // Remove bold/italic markers
   result = result.replace(/\*\*\*(.+?)\*\*\*/g, '$1');
   result = result.replace(/\*\*(.+?)\*\*/g, '$1');
   result = result.replace(/\*(.+?)\*/g, '$1');
   result = result.replace(/___(.+?)___/g, '$1');
   result = result.replace(/__(.+?)__/g, '$1');
   result = result.replace(/_([^_]+)_/g, '$1');
-  
-  // Remove code blocks but keep content
   result = result.replace(/```[\s\S]*?```/g, (match) => {
     return match.replace(/```\w*\n?/g, '').replace(/```/g, '');
   });
-  
-  // Remove inline code backticks
   result = result.replace(/`([^`]+)`/g, '$1');
-  
-  // Convert bullet points
   result = result.replace(/^[\*\-]\s+/gm, '• ');
-  
-  // Remove link formatting
   result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-  
-  // Remove blockquote markers
   result = result.replace(/^>\s+/gm, '');
-  
-  // Remove horizontal rules
   result = result.replace(/^---+$/gm, '');
   result = result.replace(/^\*\*\*+$/gm, '');
-  
   return result;
 }

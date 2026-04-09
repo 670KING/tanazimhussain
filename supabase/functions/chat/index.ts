@@ -7,53 +7,87 @@ const corsHeaders = {
 
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 
-// All FREE text models with fallback order - prioritized by reliability
+// All FREE text models with fallback order
 const FREE_TEXT_MODELS = [
-  { id: 'mimo-flash', name: 'xiaomi/mimo-v2-flash:free', context: 262000 },
-  { id: 'devstral', name: 'mistralai/devstral-2-2512:free', context: 262000 },
-  { id: 'deepseek-r1', name: 'deepseek/deepseek-r1-0528:free', context: 164000 },
-  { id: 'qwen-coder', name: 'qwen/qwen3-coder-480b-a35b:free', context: 262000 },
-  { id: 'glm-air', name: 'z-ai/glm-4.5-air:free', context: 131000 },
-  { id: 'chimera-r1t2', name: 'tngtech/deepseek-r1t2-chimera:free', context: 164000 },
-  { id: 'chimera-r1t', name: 'tngtech/deepseek-r1t-chimera:free', context: 164000 },
-  { id: 'tng-chimera', name: 'tngtech/r1t-chimera:free', context: 164000 },
+  { id: 'nemotron-super', name: 'nvidia/nemotron-3-super:free', context: 262144 },
+  { id: 'trinity-large', name: 'arcee-ai/trinity-large-preview:free', context: 131000 },
+  { id: 'qwen3-coder', name: 'qwen/qwen3-coder-480b-a35b:free', context: 262000 },
+  { id: 'gemma-4-31b', name: 'google/gemma-4-31b:free', context: 262144 },
+  { id: 'glm-air', name: 'z-ai/glm-4.5-air:free', context: 131072 },
+  { id: 'gpt-oss-120b', name: 'openai/gpt-oss-120b:free', context: 131072 },
+  { id: 'llama-70b', name: 'meta-llama/llama-3.3-70b-instruct:free', context: 65536 },
+  { id: 'minimax-m25', name: 'minimax/minimax-m2.5:free', context: 196608 },
+  { id: 'nemotron-nano-30b', name: 'nvidia/nemotron-3-nano-30b-a3b:free', context: 256000 },
+  { id: 'trinity-mini', name: 'arcee-ai/trinity-mini:free', context: 131072 },
+  { id: 'qwen3-next', name: 'qwen/qwen3-next-80b-a3b-instruct:free', context: 262144 },
+  { id: 'hermes-405b', name: 'nousresearch/hermes-3-llama-3.1-405b:free', context: 131072 },
+  { id: 'gpt-oss-20b', name: 'openai/gpt-oss-20b:free', context: 131072 },
+  { id: 'gemma-4-26b', name: 'google/gemma-4-26b-a4b:free', context: 262144 },
+  { id: 'gemma-3-27b', name: 'google/gemma-3-27b:free', context: 131072 },
+  { id: 'llama-3b', name: 'meta-llama/llama-3.2-3b-instruct:free', context: 131072 },
+  { id: 'lfm-thinking', name: 'liquidai/lfm2.5-1.2b-thinking:free', context: 32768 },
+  { id: 'venice', name: 'venice-ai/uncensored:free', context: 32768 },
 ];
 
-// FREE Vision models (can analyze images)
+// FREE Vision models
 const FREE_VISION_MODELS = [
-  { id: 'nemotron-nano', name: 'nvidia/nemotron-nano-12b-2-vl:free', context: 128000 },
-  { id: 'molmo2', name: 'allenai/molmo2-8b:free', context: 37000 },
-  { id: 'mistral-small', name: 'mistralai/mistral-small-3.1-24b:free', context: 128000 },
-  { id: 'qwen-vl', name: 'qwen/qwen-2.5-vl-7b-instruct:free', context: 33000 },
-  { id: 'gemma-4b', name: 'google/gemma-3-4b:free', context: 33000 },
-  { id: 'gemma-12b', name: 'google/gemma-3-12b:free', context: 33000 },
+  { id: 'nemotron-nano-vl', name: 'nvidia/nemotron-nano-12b-2-vl:free', context: 128000 },
+  { id: 'gemma-4-31b-vision', name: 'google/gemma-4-31b:free', context: 262144 },
+  { id: 'gemma-3-12b', name: 'google/gemma-3-12b:free', context: 32768 },
+  { id: 'gemma-3-4b', name: 'google/gemma-3-4b:free', context: 32768 },
+  { id: 'nemotron-embed-vl', name: 'nvidia/llama-nemotron-embed-vl-1b-v2:free', context: 131072 },
+  { id: 'gemma-3n-4b', name: 'google/gemma-3n-4b:free', context: 8192 },
+  { id: 'gemma-3n-2b', name: 'google/gemma-3n-2b:free', context: 8192 },
 ];
 
 // Model aliases for user-friendly selection
-const MODEL_ALIASES: Record<string, string> = {
-  // Text models
-  'mimo-flash': 'xiaomi/mimo-v2-flash:free',
-  'devstral': 'mistralai/devstral-2-2512:free',
-  'deepseek-r1': 'deepseek/deepseek-r1-0528:free',
-  'qwen-coder': 'qwen/qwen3-coder-480b-a35b:free',
-  'glm-air': 'z-ai/glm-4.5-air:free',
-  'chimera': 'tngtech/deepseek-r1t2-chimera:free',
-  // Vision models
-  'nemotron-nano': 'nvidia/nemotron-nano-12b-2-vl:free',
-  'molmo2': 'allenai/molmo2-8b:free',
-  'mistral-small': 'mistralai/mistral-small-3.1-24b:free',
-  'qwen-vl': 'qwen/qwen-2.5-vl-7b-instruct:free',
-  'gemma-4b': 'google/gemma-3-4b:free',
-  'gemma-12b': 'google/gemma-3-12b:free',
-  // Legacy aliases
-  'gemini-flash': 'xiaomi/mimo-v2-flash:free',
-  'mistral': 'mistralai/devstral-2-2512:free',
-  'llama': 'qwen/qwen3-coder-480b-a35b:free',
-};
+const MODEL_ALIASES: Record<string, string> = {};
+for (const m of [...FREE_TEXT_MODELS, ...FREE_VISION_MODELS]) {
+  MODEL_ALIASES[m.id] = m.name;
+}
+// Legacy aliases
+MODEL_ALIASES['mimo-flash'] = 'nvidia/nemotron-3-super:free';
+MODEL_ALIASES['devstral'] = 'nvidia/nemotron-3-super:free';
+MODEL_ALIASES['deepseek-r1'] = 'nvidia/nemotron-3-super:free';
+MODEL_ALIASES['qwen-coder'] = 'qwen/qwen3-coder-480b-a35b:free';
+MODEL_ALIASES['chimera'] = 'nvidia/nemotron-3-super:free';
+MODEL_ALIASES['nemotron-nano'] = 'nvidia/nemotron-nano-12b-2-vl:free';
+MODEL_ALIASES['molmo2'] = 'nvidia/nemotron-nano-12b-2-vl:free';
+MODEL_ALIASES['mistral-small'] = 'google/gemma-4-31b:free';
+MODEL_ALIASES['qwen-vl'] = 'google/gemma-3-12b:free';
+MODEL_ALIASES['gemma-4b'] = 'google/gemma-3-4b:free';
+MODEL_ALIASES['gemma-12b'] = 'google/gemma-3-12b:free';
 
-const VISION_MODEL_IDS = ['nemotron-nano', 'molmo2', 'mistral-small', 'qwen-vl', 'gemma-4b', 'gemma-12b'];
+const VISION_MODEL_IDS = FREE_VISION_MODELS.map(m => m.id);
 
 const getSystemPrompt = (type: string) => {
+  const mathInstructions = `
+**CRITICAL - LaTeX Math Formatting (ALWAYS follow these rules exactly):**
+
+For inline math, use single dollar signs: $x^2 + y^2 = r^2$
+
+For block/display math, use double dollar signs on SEPARATE LINES:
+
+$$
+\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
+$$
+
+For matrices, ALWAYS use \\begin{bmatrix}...\\end{bmatrix} inside $$ $$:
+
+$$
+A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}
+$$
+
+Rules:
+- Use \\frac{a}{b} for fractions (NOT a/b in complex expressions)
+- Use \\sqrt{x} for square roots
+- Use \\cdot for multiplication dots
+- Use \\\\ for new rows in matrices (ALWAYS double backslash)
+- Use & to separate columns in matrices
+- NEVER output raw LaTeX source like \\begin or \\frac as plain text
+- ALL math must be inside $ or $$ delimiters
+- NEVER use \\( \\) or \\[ \\] - ONLY use $ and $$`;
+
   switch (type) {
     case 'quiz':
       return `You are TanoAI Quiz Generator, a professional academic quiz creator. Generate quiz questions in valid JSON format only. 
@@ -61,7 +95,8 @@ Return ONLY a JSON array of questions with this structure:
 [{"question": "...", "type": "multiple_choice", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "..."}]
 For true/false questions use type: "true_false" with options: ["True", "False"].
 For short answer use type: "short_answer" with no options array.
-Ensure questions are educational, accurate, and appropriate for the specified difficulty level.`;
+Ensure questions are educational, accurate, and appropriate for the specified difficulty level.
+${mathInstructions}`;
 
     case 'study_plan':
       return `You are TanoAI Study Planner, an expert academic advisor. Create detailed, actionable study plans in valid JSON format only.
@@ -70,53 +105,30 @@ Return ONLY a JSON object with this structure:
 Include realistic time estimates, specific learning objectives, and practical study tips.`;
 
     case 'summary':
-      return `You are TanoAI Summarizer, an expert at condensing information. Provide clear, comprehensive summaries with:
-• Key points in bullet format
-• Main concepts highlighted
-• Important details preserved
-• Logical organization
-• Easy-to-understand language
-Focus on accuracy and clarity while maintaining the essential meaning.`;
+      return `You are TanoAI Summarizer, an expert at condensing information. Provide clear, comprehensive summaries.
+${mathInstructions}`;
 
     case 'pdf':
-      return `You are TanoAI Document Generator, an expert academic writer. Generate well-structured, professional content suitable for PDF documents.
+      return `You are TanoAI Document Generator, an expert academic writer and LaTeX typesetting specialist.
+
+Generate well-structured, professional content suitable for high-quality PDF documents.
 
 Guidelines:
-- Use clear headings and subheadings (use # for main headings, ## for subheadings)
+- Use clear headings with # for main headings, ## for subheadings, ### for sub-subheadings
 - Write in a formal, academic style unless specified otherwise
-- Include an introduction and conclusion
+- Include an introduction and conclusion for longer documents
 - Use bullet points and numbered lists where appropriate
-- Ensure content is factually accurate and well-researched
 - Structure content logically with clear transitions
-- Include relevant examples and explanations
-- Format for easy reading with proper paragraphs
+- Include relevant examples and thorough explanations
 
-**CRITICAL Math Formatting Rules:**
-When including mathematical content, you MUST use proper LaTeX syntax:
-- Inline math: Use single dollar signs like $x^2 + y^2 = r^2$
-- Display/block math: Use double dollar signs on their own lines:
+${mathInstructions}
 
-$$
-\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
-$$
-
-- For matrices, ALWAYS use proper bmatrix syntax:
-
-$$
-A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}
-$$
-
-- Use \\frac{num}{denom} for fractions
-- Use \\sqrt{x} for square roots
-- Use \\int, \\sum, \\prod for integrals, sums, products
-- Use \\\\ for new rows in matrices (NOT single \\)
-- Use & to separate columns in matrices
-
-Generate comprehensive, publication-ready content.`;
+IMPORTANT: Generate COMPLETE content. Never truncate or abbreviate. If the topic requires extensive coverage, provide it in full.`;
 
     case 'vision':
-      return `You are TanoAI Vision Assistant, an expert at analyzing and understanding images. When analyzing images:
+      return `You are TanoAI Vision Assistant, an expert at analyzing and understanding images.
 
+When analyzing images:
 1. Describe what you see in detail
 2. Identify key elements, text, objects, people, or patterns
 3. For documents/text: Extract and transcribe the content accurately
@@ -124,12 +136,7 @@ Generate comprehensive, publication-ready content.`;
 5. For photos: Describe the scene, context, and any notable details
 6. For charts/graphs: Interpret the data and trends
 
-When writing mathematical expressions found in images, use proper LaTeX:
-- Inline: $equation$
-- Block: $$equation$$
-- Matrices: $$\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}$$
-
-Be thorough, accurate, and helpful in your analysis.`;
+${mathInstructions}`;
 
     case 'resume':
       return `You are TanoAI Resume Writer, an expert professional resume consultant. Help users create impactful, ATS-friendly resume content.
@@ -146,15 +153,7 @@ Guidelines:
 Return only the improved text, nothing else.`;
 
     default:
-      return `You are TanoAI, an advanced intelligent academic assistant powered by state-of-the-art AI. You help students with:
-
-• Learning and understanding complex topics
-• Homework and assignment assistance  
-• Research and study strategies
-• Exam preparation
-• Writing and analysis
-• Code explanation and debugging
-• Math problem solving
+      return `You are TanoAI, an advanced intelligent academic assistant powered by state-of-the-art AI. You help students with learning, homework, research, exam preparation, writing, code, and math.
 
 **Formatting Guidelines:**
 - Use **bold** for important terms and concepts
@@ -164,39 +163,9 @@ Return only the improved text, nothing else.`;
 - Use > blockquotes for definitions or important notes
 - Use tables when comparing information
 
-**CRITICAL - Math Equations (ALWAYS follow these rules):**
+${mathInstructions}
 
-For inline math, use single dollar signs:
-$x^2 + y^2 = r^2$
-
-For block/display math, use double dollar signs on SEPARATE LINES:
-
-$$
-\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}
-$$
-
-For matrices, ALWAYS use \\begin{bmatrix}...\\end{bmatrix} inside $$ $$:
-
-$$
-A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}
-$$
-
-**Matrix multiplication example:**
-Let $A = \\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}$ and $B = \\begin{bmatrix} 5 & 6 \\\\ 7 & 8 \\end{bmatrix}$
-
-$$
-AB = \\begin{bmatrix} 1 \\cdot 5 + 2 \\cdot 7 & 1 \\cdot 6 + 2 \\cdot 8 \\\\ 3 \\cdot 5 + 4 \\cdot 7 & 3 \\cdot 6 + 4 \\cdot 8 \\end{bmatrix} = \\begin{bmatrix} 19 & 22 \\\\ 43 & 50 \\end{bmatrix}
-$$
-
-Rules:
-- Use \\frac{a}{b} for fractions (NOT a/b in complex expressions)
-- Use \\sqrt{x} for square roots
-- Use \\cdot for multiplication dots
-- Use \\\\ for new lines in matrices
-- Use & to separate columns in matrices
-- NEVER use single backslash before begin/end - always use proper LaTeX
-
-Be helpful, accurate, and educational. Explain concepts clearly with examples.`;
+Be helpful, accurate, and educational. Explain concepts clearly with examples. ALWAYS complete your response fully - never truncate.`;
   }
 };
 
@@ -230,7 +199,7 @@ serve(async (req) => {
   try {
     const { 
       messages, 
-      model = 'mimo-flash', 
+      model = 'nemotron-super', 
       stream = true, 
       type = 'chat',
       images = [],
@@ -245,26 +214,21 @@ serve(async (req) => {
     const hasImages = images && images.length > 0;
     const isVisionRequest = hasImages || type === 'vision';
     
-    // Select appropriate model based on request type
     let primaryModel: string;
     let fallbackModels: typeof FREE_TEXT_MODELS;
     
     if (isVisionRequest) {
-      // Use vision model for image analysis
       primaryModel = MODEL_ALIASES[model] && VISION_MODEL_IDS.includes(model) 
         ? MODEL_ALIASES[model] 
         : 'nvidia/nemotron-nano-12b-2-vl:free';
       fallbackModels = FREE_VISION_MODELS;
     } else {
-      // Use text model
-      primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['mimo-flash'];
+      primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['nemotron-super'];
       fallbackModels = FREE_TEXT_MODELS;
     }
 
-    // Get system prompt based on type
     let systemPrompt = getSystemPrompt(type);
     
-    // Enhance system prompt for PDF generation
     if (pdfOptions) {
       systemPrompt += `\n\nDocument Requirements:
 - Title: ${pdfOptions.title || 'Untitled'}
@@ -272,18 +236,15 @@ serve(async (req) => {
 - Style: ${pdfOptions.style}
 - Length: ${pdfOptions.length === 'short' ? '500-1000 words' : pdfOptions.length === 'medium' ? '1500-2500 words' : '3000+ words'}
 
-IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code or escaped characters that won't render properly.`;
+IMPORTANT: Use proper LaTeX math notation for ALL equations. Every equation must be inside $ or $$ delimiters. Generate COMPLETE content - never truncate.`;
     }
 
     const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : 0.7;
-    // Support much longer context for PDF and long responses
     const tokenLimit = pdfOptions?.length === 'long' ? 32768 : maxTokens > 8192 ? maxTokens : 16384;
 
-    // Build messages with images if present
     let fullMessages: any[];
     
     if (hasImages) {
-      // Format messages with images for vision models
       const lastUserMessage = messages[messages.length - 1];
       const previousMessages = messages.slice(0, -1);
       
@@ -310,12 +271,10 @@ IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code 
       ];
     }
 
-    // Try primary model first
     let response = await callModel(primaryModel, fullMessages, stream, temperature, tokenLimit);
     let usedModel = primaryModel;
     let attempts = 1;
 
-    // Auto-fallback: if primary fails, try other models
     if (!response.ok) {
       console.log(`Primary model ${primaryModel} failed with status ${response.status}, trying fallbacks...`);
       
@@ -332,8 +291,7 @@ IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code 
           break;
         }
         
-        // Limit fallback attempts to avoid excessive delays
-        if (attempts >= 6) {
+        if (attempts >= 8) {
           console.log('Max fallback attempts reached');
           break;
         }
@@ -348,7 +306,6 @@ IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code 
         return new Response(JSON.stringify({ 
           error: 'All AI models are currently busy. Please try again in a few moments.',
           tried_models: attempts,
-          suggestion: 'Wait 30 seconds and try again'
         }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -358,7 +315,6 @@ IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code 
       return new Response(JSON.stringify({ 
         error: 'AI service temporarily unavailable. Please try again.',
         tried_models: attempts,
-        suggestion: 'Try a different model or refresh the page'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -387,7 +343,6 @@ IMPORTANT: Use proper LaTeX math notation for any equations. Never use raw code 
     console.error('Chat function error:', error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Unknown error',
-      suggestion: 'Please check your internet connection and try again.'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
