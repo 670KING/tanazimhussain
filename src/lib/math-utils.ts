@@ -202,7 +202,6 @@ export function latexToHumanReadable(content: string): string {
     [/\\land/g, '∧'], [/\\lor/g, '∨'], [/\\neg/g, '¬'],
     [/\\rightarrow/g, '→'], [/\\leftarrow/g, '←'], [/\\Rightarrow/g, '⇒'], [/\\Leftarrow/g, '⇐'],
     [/\\leftrightarrow/g, '↔'], [/\\Leftrightarrow/g, '⇔'], [/\\iff/g, '⇔'], [/\\implies/g, '⇒'],
-    [/\\left[(\[({|]/g, (_, c) => c], [/\\right[\])}|]/g, (_, c) => c],
     [/\\langle/g, '⟨'], [/\\rangle/g, '⟩'],
     [/\\ldots/g, '…'], [/\\cdots/g, '⋯'], [/\\vdots/g, '⋮'], [/\\ddots/g, '⋱'],
   ];
