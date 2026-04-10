@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog, 
@@ -46,6 +46,7 @@ import {
   ExportOptions 
 } from './PDFExporter';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
+import { parseStructuredDocument, structuredToMarkdown } from '@/lib/math-utils';
 
 interface UltraPDFGeneratorProps {
   onGenerateWithAI: (prompt: string, options: PDFOptions) => Promise<string>;
