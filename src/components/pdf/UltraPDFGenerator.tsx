@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog, 
@@ -46,6 +46,7 @@ import {
   ExportOptions 
 } from './PDFExporter';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
+import { parseStructuredDocument, structuredToMarkdown } from '@/lib/math-utils';
 
 interface UltraPDFGeneratorProps {
   onGenerateWithAI: (prompt: string, options: PDFOptions) => Promise<string>;
@@ -432,9 +433,13 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
                       </p>
                       <Separator className={cn(selectedTheme === 'dark' && 'bg-gray-700')} />
                       
-                      {/* Content Preview */}
+                      {/* Content Preview - handles both structured JSON and markdown */}
                       <div className="mt-4 prose-ai">
-                        <MarkdownRenderer content={generatedContent} />
+                        <MarkdownRenderer content={(() => {
+                          const structured = parseStructuredDocument(generatedContent);
+                          if (structured) return structuredToMarkdown(structured);
+                          return generatedContent;
+                        })()} />
                       </div>
                     </div>
                   </ScrollArea>

@@ -40,12 +40,11 @@ const FREE_VISION_MODELS = [
   { id: 'gemma-3n-2b', name: 'google/gemma-3n-2b:free', context: 8192 },
 ];
 
-// Model aliases for user-friendly selection
+// Model aliases
 const MODEL_ALIASES: Record<string, string> = {};
 for (const m of [...FREE_TEXT_MODELS, ...FREE_VISION_MODELS]) {
   MODEL_ALIASES[m.id] = m.name;
 }
-// Legacy aliases
 MODEL_ALIASES['mimo-flash'] = 'nvidia/nemotron-3-super:free';
 MODEL_ALIASES['devstral'] = 'nvidia/nemotron-3-super:free';
 MODEL_ALIASES['deepseek-r1'] = 'nvidia/nemotron-3-super:free';
@@ -60,8 +59,7 @@ MODEL_ALIASES['gemma-12b'] = 'google/gemma-3-12b:free';
 
 const VISION_MODEL_IDS = FREE_VISION_MODELS.map(m => m.id);
 
-const getSystemPrompt = (type: string) => {
-  const mathInstructions = `
+const MATH_INSTRUCTIONS = `
 **CRITICAL - LaTeX Math Formatting (ALWAYS follow these rules exactly):**
 
 For inline math, use single dollar signs: $x^2 + y^2 = r^2$
@@ -86,8 +84,12 @@ Rules:
 - Use & to separate columns in matrices
 - NEVER output raw LaTeX source like \\begin or \\frac as plain text
 - ALL math must be inside $ or $$ delimiters
-- NEVER use \\( \\) or \\[ \\] - ONLY use $ and $$`;
+- NEVER use \\( \\) or \\[ \\] - ONLY use $ and $$
+- Use \\text{} for text inside math environments
+- Use \\operatorname{} for multi-letter operators
+- Properly nest braces: \\frac{\\sqrt{x^2+1}}{2}`;
 
+const getSystemPrompt = (type: string) => {
   switch (type) {
     case 'quiz':
       return `You are TanoAI Quiz Generator, a professional academic quiz creator. Generate quiz questions in valid JSON format only. 
@@ -96,7 +98,7 @@ Return ONLY a JSON array of questions with this structure:
 For true/false questions use type: "true_false" with options: ["True", "False"].
 For short answer use type: "short_answer" with no options array.
 Ensure questions are educational, accurate, and appropriate for the specified difficulty level.
-${mathInstructions}`;
+${MATH_INSTRUCTIONS}`;
 
     case 'study_plan':
       return `You are TanoAI Study Planner, an expert academic advisor. Create detailed, actionable study plans in valid JSON format only.
@@ -106,24 +108,64 @@ Include realistic time estimates, specific learning objectives, and practical st
 
     case 'summary':
       return `You are TanoAI Summarizer, an expert at condensing information. Provide clear, comprehensive summaries.
-${mathInstructions}`;
+${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are TanoAI Document Generator, an expert academic writer and LaTeX typesetting specialist.
+      return `You are TanoAI Ultra Pro Document Engine, an expert in academic writing, LaTeX typesetting, and structured document generation.
 
-Generate well-structured, professional content suitable for high-quality PDF documents.
+⚠️ CRITICAL: Output ONLY valid JSON. No explanations, no markdown, no backticks, no code blocks wrapping the JSON. Just raw JSON.
 
-Guidelines:
-- Use clear headings with # for main headings, ## for subheadings, ### for sub-subheadings
-- Write in a formal, academic style unless specified otherwise
-- Include an introduction and conclusion for longer documents
-- Use bullet points and numbered lists where appropriate
-- Structure content logically with clear transitions
-- Include relevant examples and thorough explanations
+Return this EXACT JSON structure:
 
-${mathInstructions}
+{
+  "document": {
+    "title": "string",
+    "subtitle": "string",
+    "author": "TanoAI",
+    "sections": [
+      {
+        "heading": "string",
+        "content": "string (clear explanation, paragraph form)",
+        "bullets": ["string", "string"],
+        "math_inline": ["a^2 + b^2 = c^2"],
+        "math_block": ["\\\\frac{a}{b}", "E = mc^2"],
+        "tables": [
+          {
+            "headers": ["Column A", "Column B"],
+            "rows": [["value1", "value2"]]
+          }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "title": "string",
+    "slides": [
+      {
+        "title": "string",
+        "points": ["short bullet", "short bullet"],
+        "notes": "speaker notes",
+        "visual_hint": "equation"
+      }
+    ]
+  }
+}
 
-IMPORTANT: Generate COMPLETE content. Never truncate or abbreviate. If the topic requires extensive coverage, provide it in full.`;
+CONTENT RULES:
+- Minimum 3 sections, maximum 6 sections
+- 2-5 bullets per section
+- Content must be clear, structured, educational, and complete
+- Math: Use ONLY KaTeX-compatible LaTeX. Raw expressions like "a^2 + b^2 = c^2" and "\\\\frac{a}{b}"
+- Escape backslashes properly in JSON (double \\\\)
+- Tables: Only when meaningful, keep small and clean
+- NEVER use undefined fields or trailing commas
+- All arrays must exist (use empty arrays [] if no items)
+
+PRESENTATION RULES:
+- Max 5 bullets per slide, each under 10 words
+- visual_hint: "equation" for math, "chart" for data, "diagram" for concepts, "none" otherwise
+
+VALIDATE before output: JSON is valid, all arrays exist, no syntax errors, proper escaping.`;
 
     case 'vision':
       return `You are TanoAI Vision Assistant, an expert at analyzing and understanding images.
@@ -136,7 +178,7 @@ When analyzing images:
 5. For photos: Describe the scene, context, and any notable details
 6. For charts/graphs: Interpret the data and trends
 
-${mathInstructions}`;
+${MATH_INSTRUCTIONS}`;
 
     case 'resume':
       return `You are TanoAI Resume Writer, an expert professional resume consultant. Help users create impactful, ATS-friendly resume content.
@@ -163,7 +205,7 @@ Return only the improved text, nothing else.`;
 - Use > blockquotes for definitions or important notes
 - Use tables when comparing information
 
-${mathInstructions}
+${MATH_INSTRUCTIONS}
 
 Be helpful, accurate, and educational. Explain concepts clearly with examples. ALWAYS complete your response fully - never truncate.`;
   }
@@ -234,13 +276,13 @@ serve(async (req) => {
 - Title: ${pdfOptions.title || 'Untitled'}
 - Type: ${pdfOptions.type}
 - Style: ${pdfOptions.style}
-- Length: ${pdfOptions.length === 'short' ? '500-1000 words' : pdfOptions.length === 'medium' ? '1500-2500 words' : '3000+ words'}
+- Length: ${pdfOptions.length === 'short' ? '3-4 sections, 500-1000 words total' : pdfOptions.length === 'medium' ? '4-5 sections, 1500-2500 words total' : '5-6 sections, 3000+ words total'}
 
-IMPORTANT: Use proper LaTeX math notation for ALL equations. Every equation must be inside $ or $$ delimiters. Generate COMPLETE content - never truncate.`;
+Generate COMPLETE content. Never truncate. Every math expression must use proper KaTeX-compatible LaTeX with correct escaping for JSON.`;
     }
 
-    const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : 0.7;
-    const tokenLimit = pdfOptions?.length === 'long' ? 32768 : maxTokens > 8192 ? maxTokens : 16384;
+    const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : type === 'pdf' ? 0.4 : 0.7;
+    const tokenLimit = pdfOptions?.length === 'long' ? 32768 : type === 'pdf' ? 16384 : maxTokens > 8192 ? maxTokens : 16384;
 
     let fullMessages: any[];
     
