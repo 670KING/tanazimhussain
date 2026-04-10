@@ -2,7 +2,7 @@
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { ThemeConfig, getTheme, PDFTheme } from './PDFThemes';
-import { latexToHumanReadable, cleanMarkdown, parseStructuredDocument, StructuredDocument, StructuredSection } from '@/lib/math-utils';
+import { latexToHumanReadable, cleanMarkdown, parseStructuredDocument, structuredToMarkdown, StructuredDocument, StructuredSection } from '@/lib/math-utils';
 
 export interface ExportOptions {
   title: string;
