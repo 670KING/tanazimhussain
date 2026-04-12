@@ -7,55 +7,24 @@ const corsHeaders = {
 
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 
-// All FREE text models with fallback order
+// ONLY user-specified free models
 const FREE_TEXT_MODELS = [
-  { id: 'nemotron-super', name: 'nvidia/nemotron-3-super:free', context: 262144 },
-  { id: 'trinity-large', name: 'arcee-ai/trinity-large-preview:free', context: 131000 },
-  { id: 'qwen3-coder', name: 'qwen/qwen3-coder-480b-a35b:free', context: 262000 },
-  { id: 'gemma-4-31b', name: 'google/gemma-4-31b:free', context: 262144 },
-  { id: 'glm-air', name: 'z-ai/glm-4.5-air:free', context: 131072 },
+  { id: 'nemotron-super', name: 'nvidia/nemotron-3-super-120b-a12b:free', context: 262144 },
+  { id: 'gemma-4-26b', name: 'google/gemma-4-26b-a4b-it:free', context: 262144 },
+  { id: 'lfm-thinking', name: 'liquid/lfm-2.5-1.2b-thinking:free', context: 32768 },
   { id: 'gpt-oss-120b', name: 'openai/gpt-oss-120b:free', context: 131072 },
-  { id: 'llama-70b', name: 'meta-llama/llama-3.3-70b-instruct:free', context: 65536 },
-  { id: 'minimax-m25', name: 'minimax/minimax-m2.5:free', context: 196608 },
-  { id: 'nemotron-nano-30b', name: 'nvidia/nemotron-3-nano-30b-a3b:free', context: 256000 },
-  { id: 'trinity-mini', name: 'arcee-ai/trinity-mini:free', context: 131072 },
   { id: 'qwen3-next', name: 'qwen/qwen3-next-80b-a3b-instruct:free', context: 262144 },
-  { id: 'hermes-405b', name: 'nousresearch/hermes-3-llama-3.1-405b:free', context: 131072 },
-  { id: 'gpt-oss-20b', name: 'openai/gpt-oss-20b:free', context: 131072 },
-  { id: 'gemma-4-26b', name: 'google/gemma-4-26b-a4b:free', context: 262144 },
-  { id: 'gemma-3-27b', name: 'google/gemma-3-27b:free', context: 131072 },
-  { id: 'llama-3b', name: 'meta-llama/llama-3.2-3b-instruct:free', context: 131072 },
-  { id: 'lfm-thinking', name: 'liquidai/lfm2.5-1.2b-thinking:free', context: 32768 },
-  { id: 'venice', name: 'venice-ai/uncensored:free', context: 32768 },
 ];
 
-// FREE Vision models
 const FREE_VISION_MODELS = [
-  { id: 'nemotron-nano-vl', name: 'nvidia/nemotron-nano-12b-2-vl:free', context: 128000 },
-  { id: 'gemma-4-31b-vision', name: 'google/gemma-4-31b:free', context: 262144 },
-  { id: 'gemma-3-12b', name: 'google/gemma-3-12b:free', context: 32768 },
-  { id: 'gemma-3-4b', name: 'google/gemma-3-4b:free', context: 32768 },
-  { id: 'nemotron-embed-vl', name: 'nvidia/llama-nemotron-embed-vl-1b-v2:free', context: 131072 },
-  { id: 'gemma-3n-4b', name: 'google/gemma-3n-4b:free', context: 8192 },
-  { id: 'gemma-3n-2b', name: 'google/gemma-3n-2b:free', context: 8192 },
+  { id: 'gemma-4-26b-vision', name: 'google/gemma-4-26b-a4b-it:free', context: 262144 },
+  { id: 'nemotron-nano-vl', name: 'nvidia/nemotron-nano-12b-v2-vl:free', context: 128000 },
 ];
 
-// Model aliases
 const MODEL_ALIASES: Record<string, string> = {};
 for (const m of [...FREE_TEXT_MODELS, ...FREE_VISION_MODELS]) {
   MODEL_ALIASES[m.id] = m.name;
 }
-MODEL_ALIASES['mimo-flash'] = 'nvidia/nemotron-3-super:free';
-MODEL_ALIASES['devstral'] = 'nvidia/nemotron-3-super:free';
-MODEL_ALIASES['deepseek-r1'] = 'nvidia/nemotron-3-super:free';
-MODEL_ALIASES['qwen-coder'] = 'qwen/qwen3-coder-480b-a35b:free';
-MODEL_ALIASES['chimera'] = 'nvidia/nemotron-3-super:free';
-MODEL_ALIASES['nemotron-nano'] = 'nvidia/nemotron-nano-12b-2-vl:free';
-MODEL_ALIASES['molmo2'] = 'nvidia/nemotron-nano-12b-2-vl:free';
-MODEL_ALIASES['mistral-small'] = 'google/gemma-4-31b:free';
-MODEL_ALIASES['qwen-vl'] = 'google/gemma-3-12b:free';
-MODEL_ALIASES['gemma-4b'] = 'google/gemma-3-4b:free';
-MODEL_ALIASES['gemma-12b'] = 'google/gemma-3-12b:free';
 
 const VISION_MODEL_IDS = FREE_VISION_MODELS.map(m => m.id);
 
@@ -92,31 +61,23 @@ Rules:
 const getSystemPrompt = (type: string) => {
   switch (type) {
     case 'quiz':
-      return `You are TanoAI Quiz Generator, a professional academic quiz creator. Generate quiz questions in valid JSON format only. 
-Return ONLY a JSON array of questions with this structure:
-[{"question": "...", "type": "multiple_choice", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "..."}]
-For true/false questions use type: "true_false" with options: ["True", "False"].
-For short answer use type: "short_answer" with no options array.
-Ensure questions are educational, accurate, and appropriate for the specified difficulty level.
+      return `You are TanoAI Quiz Generator. Generate quiz questions in valid JSON format only.
+Return ONLY a JSON array: [{"question": "...", "type": "multiple_choice", "options": ["A","B","C","D"], "correct_answer": "A", "explanation": "..."}]
 ${MATH_INSTRUCTIONS}`;
 
     case 'study_plan':
-      return `You are TanoAI Study Planner, an expert academic advisor. Create detailed, actionable study plans in valid JSON format only.
-Return ONLY a JSON object with this structure:
-{"title": "...", "topics": [{"name": "...", "duration": "...", "description": "...", "completed": false, "resources": ["..."]}], "tips": ["..."], "milestones": ["..."]}
-Include realistic time estimates, specific learning objectives, and practical study tips.`;
+      return `You are TanoAI Study Planner. Create study plans in valid JSON format only.
+Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "description": "...", "completed": false, "resources": ["..."]}], "tips": ["..."], "milestones": ["..."]}`;
 
     case 'summary':
-      return `You are TanoAI Summarizer, an expert at condensing information. Provide clear, comprehensive summaries.
-${MATH_INSTRUCTIONS}`;
+      return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are TanoAI Ultra Pro Document Engine, an expert in academic writing, LaTeX typesetting, and structured document generation.
+      return `You are TanoAI Ultra Pro Document Engine.
 
-⚠️ CRITICAL: Output ONLY valid JSON. No explanations, no markdown, no backticks, no code blocks wrapping the JSON. Just raw JSON.
+⚠️ CRITICAL: Output ONLY valid JSON. No markdown, no backticks, no code blocks. Just raw JSON.
 
-Return this EXACT JSON structure:
-
+Return this EXACT structure:
 {
   "document": {
     "title": "string",
@@ -125,96 +86,45 @@ Return this EXACT JSON structure:
     "sections": [
       {
         "heading": "string",
-        "content": "string (clear explanation, paragraph form)",
-        "bullets": ["string", "string"],
+        "content": "string",
+        "bullets": ["string"],
         "math_inline": ["a^2 + b^2 = c^2"],
-        "math_block": ["\\\\frac{a}{b}", "E = mc^2"],
-        "tables": [
-          {
-            "headers": ["Column A", "Column B"],
-            "rows": [["value1", "value2"]]
-          }
-        ]
+        "math_block": ["\\\\frac{a}{b}"],
+        "tables": [{"headers": ["A","B"], "rows": [["1","2"]]}]
       }
     ]
   },
   "presentation": {
     "title": "string",
     "slides": [
-      {
-        "title": "string",
-        "points": ["short bullet", "short bullet"],
-        "notes": "speaker notes",
-        "visual_hint": "equation"
-      }
+      {"title": "string", "points": ["bullet"], "notes": "notes", "visual_hint": "equation"}
     ]
   }
 }
 
-CONTENT RULES:
-- Minimum 3 sections, maximum 6 sections
-- 2-5 bullets per section
-- Content must be clear, structured, educational, and complete
-- Math: Use ONLY KaTeX-compatible LaTeX. Raw expressions like "a^2 + b^2 = c^2" and "\\\\frac{a}{b}"
-- Escape backslashes properly in JSON (double \\\\)
-- Tables: Only when meaningful, keep small and clean
-- NEVER use undefined fields or trailing commas
-- All arrays must exist (use empty arrays [] if no items)
-
-PRESENTATION RULES:
-- Max 5 bullets per slide, each under 10 words
-- visual_hint: "equation" for math, "chart" for data, "diagram" for concepts, "none" otherwise
-
-VALIDATE before output: JSON is valid, all arrays exist, no syntax errors, proper escaping.`;
+RULES: 3-6 sections, 2-5 bullets each, KaTeX-compatible LaTeX only, escape backslashes in JSON (double \\\\). All arrays must exist (empty [] if none). VALIDATE JSON before output.`;
 
     case 'vision':
-      return `You are TanoAI Vision Assistant, an expert at analyzing and understanding images.
-
-When analyzing images:
-1. Describe what you see in detail
-2. Identify key elements, text, objects, people, or patterns
-3. For documents/text: Extract and transcribe the content accurately
-4. For math/diagrams: Explain the concepts shown using proper LaTeX notation
-5. For photos: Describe the scene, context, and any notable details
-6. For charts/graphs: Interpret the data and trends
-
-${MATH_INSTRUCTIONS}`;
+      return `You are TanoAI Vision Assistant. Analyze images in detail: describe elements, extract text, explain math/diagrams with LaTeX, interpret charts.\n${MATH_INSTRUCTIONS}`;
 
     case 'resume':
-      return `You are TanoAI Resume Writer, an expert professional resume consultant. Help users create impactful, ATS-friendly resume content.
-
-Guidelines:
-- Use strong action verbs (Led, Developed, Implemented, Achieved)
-- Quantify achievements with metrics where possible
-- Keep bullet points concise (1-2 lines max)
-- Focus on impact and results, not just duties
-- Use industry-appropriate keywords
-- Maintain professional, confident tone
-- Avoid clichés like "team player" or "hard worker"
-
-Return only the improved text, nothing else.`;
+      return `You are TanoAI Resume Writer. Use strong action verbs, quantify achievements, keep bullets concise, use industry keywords. Return only improved text.`;
 
     default:
-      return `You are TanoAI, an advanced intelligent academic assistant powered by state-of-the-art AI. You help students with learning, homework, research, exam preparation, writing, code, and math.
+      return `You are TanoAI, an advanced academic assistant. Help with learning, homework, research, exams, writing, code, and math.
 
-**Formatting Guidelines:**
-- Use **bold** for important terms and concepts
-- Use \`code blocks\` for code and technical terms
-- Use proper headings (# ## ###) for organization
-- Use bullet points and numbered lists for clarity
-- Use > blockquotes for definitions or important notes
-- Use tables when comparing information
+**Formatting:** Use **bold**, \`code blocks\`, headings (#), bullet points, tables, > blockquotes.
 
 ${MATH_INSTRUCTIONS}
 
-Be helpful, accurate, and educational. Explain concepts clearly with examples. ALWAYS complete your response fully - never truncate.`;
+Be helpful, accurate, educational. ALWAYS complete your response fully.`;
   }
 };
 
 async function callModel(modelName: string, messages: any[], stream: boolean, temperature: number, maxTokens: number = 8192) {
   console.log(`Calling model: ${modelName} with maxTokens: ${maxTokens}`);
   
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  return await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
@@ -230,7 +140,6 @@ async function callModel(modelName: string, messages: any[], stream: boolean, te
       temperature,
     }),
   });
-  return response;
 }
 
 serve(async (req) => {
@@ -262,7 +171,7 @@ serve(async (req) => {
     if (isVisionRequest) {
       primaryModel = MODEL_ALIASES[model] && VISION_MODEL_IDS.includes(model) 
         ? MODEL_ALIASES[model] 
-        : 'nvidia/nemotron-nano-12b-2-vl:free';
+        : 'google/gemma-4-26b-a4b-it:free';
       fallbackModels = FREE_VISION_MODELS;
     } else {
       primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['nemotron-super'];
@@ -276,9 +185,8 @@ serve(async (req) => {
 - Title: ${pdfOptions.title || 'Untitled'}
 - Type: ${pdfOptions.type}
 - Style: ${pdfOptions.style}
-- Length: ${pdfOptions.length === 'short' ? '3-4 sections, 500-1000 words total' : pdfOptions.length === 'medium' ? '4-5 sections, 1500-2500 words total' : '5-6 sections, 3000+ words total'}
-
-Generate COMPLETE content. Never truncate. Every math expression must use proper KaTeX-compatible LaTeX with correct escaping for JSON.`;
+- Length: ${pdfOptions.length === 'short' ? '3-4 sections' : pdfOptions.length === 'medium' ? '4-5 sections' : '5-6 sections'}
+Generate COMPLETE content. Never truncate.`;
     }
 
     const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : type === 'pdf' ? 0.4 : 0.7;
@@ -318,47 +226,30 @@ Generate COMPLETE content. Never truncate. Every math expression must use proper
     let attempts = 1;
 
     if (!response.ok) {
-      console.log(`Primary model ${primaryModel} failed with status ${response.status}, trying fallbacks...`);
+      console.log(`Primary model ${primaryModel} failed (${response.status}), trying fallbacks...`);
       
       for (const fallbackModel of fallbackModels) {
         if (fallbackModel.name === primaryModel) continue;
-        
         attempts++;
-        console.log(`Attempting fallback model: ${fallbackModel.name}`);
+        console.log(`Fallback: ${fallbackModel.name}`);
         response = await callModel(fallbackModel.name, fullMessages, stream, temperature, tokenLimit);
         usedModel = fallbackModel.name;
         
-        if (response.ok) {
-          console.log(`Fallback model ${fallbackModel.name} succeeded`);
-          break;
-        }
-        
-        if (attempts >= 8) {
-          console.log('Max fallback attempts reached');
-          break;
-        }
+        if (response.ok) break;
+        if (attempts >= 5) break;
       }
     }
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('All models failed. Last error:', response.status, error);
-      
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ 
-          error: 'All AI models are currently busy. Please try again in a few moments.',
-          tried_models: attempts,
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
+      console.error('All models failed:', response.status, error);
       
       return new Response(JSON.stringify({ 
-        error: 'AI service temporarily unavailable. Please try again.',
-        tried_models: attempts,
+        error: response.status === 429 
+          ? 'All AI models are busy. Please try again in a moment.' 
+          : 'AI service temporarily unavailable. Please try again.',
       }), {
-        status: 500,
+        status: response.status === 429 ? 429 : 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -368,16 +259,10 @@ Generate COMPLETE content. Never truncate. Every math expression must use proper
       headers.set('Content-Type', 'text/event-stream');
       headers.set('X-Model-Used', usedModel);
       headers.set('X-Vision-Mode', String(isVisionRequest));
-      headers.set('X-Attempts', String(attempts));
       return new Response(response.body, { headers });
     } else {
       const data = await response.json();
-      return new Response(JSON.stringify({ 
-        ...data, 
-        model_used: usedModel,
-        vision_mode: isVisionRequest,
-        attempts 
-      }), {
+      return new Response(JSON.stringify({ ...data, model_used: usedModel }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
