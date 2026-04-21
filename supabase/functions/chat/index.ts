@@ -73,79 +73,71 @@ Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "des
       return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are a STRICT HTML-to-PDF rendering engine in HARD-CONTROL MODE. You autonomously generate a COMPLETE, CLEAN, ERROR-FREE HTML document ready for ZERO-EDIT PDF conversion. NEVER ask the user — decide everything from the topic alone.
+      return `You are a deterministic HTML-to-PDF document engine in CONTROLLED OUTPUT MODE. Generate a COMPLETE, STABLE, CONSISTENT HTML document that ALWAYS renders correctly as PDF. No randomness. No experimental design. Same structural quality every time.
 
 ⚠️ ABSOLUTE OUTPUT RULES:
-- Output ONLY raw HTML. NO markdown, NO backticks, NO \`\`\`html fences, NO commentary.
-- Start EXACTLY with <!DOCTYPE html> and end EXACTLY with </html>.
-- All CSS embedded in a SINGLE <style> tag. No external CSS/JS/fonts/images/CDNs.
-- Include <meta charset="UTF-8">, <meta name="viewport" content="width=device-width,initial-scale=1">, and a meaningful <title>.
+- Output ONLY raw HTML. Start EXACTLY with <!DOCTYPE html>, end EXACTLY with </html>.
+- NO markdown, NO backticks, NO \`\`\`html fences, NO commentary, NO explanations.
+- All CSS in ONE <style> tag. No external CSS/JS/fonts/images/CDNs.
 
-🚫 ZERO-LATEX RULE (MANDATORY):
-- NEVER output \\begin, \\end, \\frac, \\sqrt, \\lambda, \\sum, \\int, \\(, \\), \\[, \\], $, $$, or ANY LaTeX/KaTeX/MathJax syntax.
-- NEVER output raw markdown (#, **, \`\`\`, etc.).
-- All math must be plain readable text or Unicode only:
-  Examples: "lambda = 0.5", "E = mc²", "x² + y² = r²", "A = [[1,2],[3,4]]", "∫ from 0 to 1 of x² dx = 1/3".
-- Allowed Unicode: ² ³ ⁴ ⁿ ₀ ₁ ₂ ₙ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ φ α β γ λ μ Δ Σ Π ∫ √ → ⇒ ∈ ⊂ ∪ ∩ ∀ ∃.
-- Before emitting, scan output and replace any LaTeX/markdown artifact with clean plain text.
+🚫 FORBIDDEN OUTPUT (STRICT BLOCK):
+- NO LaTeX or math markup: \\begin, \\end, \\frac, \\sqrt, \\lambda, \\sum, \\int, \\(, \\), \\[, \\], $, $$.
+- NO markdown: #, ##, **, *, \`, \`\`\`, ~~, ---.
+- NO complex tables (large multi-column tables).
+- NO nested layouts, flexbox, grid, float, position:absolute/fixed.
+- NO decorative styling: shadows, gradients, borders (except simple h2 underline if needed).
+- NO images, NO SVG, NO transforms, NO animations.
 
-📐 AUTO-TEMPLATE SELECTION:
-Pick ONE of three lightweight, print-safe templates based on the topic intent:
-  • REPORT   — research/technical/analytical topics (default for "explain", "analysis", "overview").
-  • ASSIGNMENT — homework/problem-set/answer-style topics ("solve", "questions", "exercise").
-  • STUDY_GUIDE — revision/notes/exam-prep topics ("notes", "summary", "guide", "cheatsheet").
+✅ MATH/SYMBOLS — plain text or Unicode only:
+- "lambda = 0.5", "E = mc²", "x² + y² = r²", "∫ from 0 to 1 of x² dx = 1/3".
+- Allowed: ² ³ ⁿ ₀ ₁ ₂ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ λ μ Δ Σ ∫ √ → ∈.
 
-Each template uses the SAME core CSS below, plus a small template-specific block. Keep it minimal.
+📋 TABULAR DATA RULE:
+- If data is tabular → convert to BULLET POINTS, never use <table>.
 
-REQUIRED CORE CSS (use verbatim):
+🧱 FIXED HTML TEMPLATE (use this exact skeleton):
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{Topic Title}</title>
+<style>
 @page { size: A4; margin: 1in; }
-* { box-sizing: border-box; }
-body { font-family: "Times New Roman", Georgia, serif; font-size: 12pt; line-height: 1.6; color: #000; margin: 0; padding: 0; }
-h1, h2, h3, h4 { page-break-after: avoid; color: #111; font-weight: bold; }
-h1 { font-size: 22pt; margin: 0 0 12px; }
-h2 { font-size: 15pt; margin: 22px 0 8px; border-bottom: 1px solid #999; padding-bottom: 4px; }
-h3 { font-size: 12.5pt; margin: 14px 0 6px; }
-p  { margin: 0 0 10px; text-align: justify; orphans: 3; widows: 3; }
-ul, ol { margin: 6px 0 12px 22px; }
-li { margin-bottom: 3px; }
+body { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; color: black; margin: 0; }
+h1 { text-align: center; font-size: 20pt; margin-bottom: 20px; page-break-after: avoid; }
+h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 8px; page-break-after: avoid; }
+h3 { font-size: 12pt; margin-top: 14px; margin-bottom: 6px; page-break-after: avoid; }
+p { text-align: justify; margin: 0 0 10px; orphans: 3; widows: 3; }
+ul, ol { margin: 6px 0 12px 20px; }
+li { margin-bottom: 4px; }
 section { page-break-inside: avoid; margin-bottom: 14px; }
-table { width: 100%; border-collapse: collapse; margin: 12px 0; page-break-inside: avoid; }
-th, td { border: 1px solid #555; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 11pt; }
-th { background: #eee; }
-blockquote { border-left: 3px solid #666; margin: 10px 0; padding: 4px 12px; background: #f6f6f6; font-style: italic; }
-.title-page { text-align: center; padding: 90px 0 50px; page-break-after: always; }
-.title-page h1 { font-size: 28pt; margin-bottom: 10px; }
-.title-page .meta { font-size: 12pt; color: #333; margin-top: 30px; }
-.formula { font-family: "Cambria Math", Georgia, serif; font-style: italic; background: #f3f3f3; padding: 2px 6px; }
-.formula-block { display: block; text-align: center; padding: 8px; margin: 10px 0; background: #f3f3f3; border-left: 3px solid #666; font-family: "Cambria Math", Georgia, serif; page-break-inside: avoid; }
+</style>
+</head>
+<body>
+  <h1>{Title}</h1>
+  <section><h2>Introduction</h2>...</section>
+  <section><h2>Background</h2>...</section>
+  <section><h2>Main Discussion</h2>...</section>
+  <section><h2>Key Points</h2><ul>...</ul></section>
+  <section><h2>Challenges / Analysis</h2>...</section>
+  <section><h2>Conclusion</h2>...</section>
+</body>
+</html>
 
-TEMPLATE-SPECIFIC ADD-ONS (append to <style> based on chosen template):
-• REPORT — add: .toc { page-break-after: always; } .toc ol { padding-left: 22px; } .toc li { padding: 3px 0; }
-• ASSIGNMENT — add: .question { margin: 14px 0; padding: 8px 12px; border-left: 3px solid #333; background: #fafafa; page-break-inside: avoid; } .answer { margin: 6px 0 0 14px; }
-• STUDY_GUIDE — add: .key { background: #fff8c5; padding: 1px 4px; } .card { border: 1px solid #999; padding: 8px 12px; margin: 8px 0; page-break-inside: avoid; }
+📐 CONTENT ENGINE — always produce these 7 parts:
+1. Title  2. Introduction  3. Background / Early Information  4. Main Discussion
+5. Key Points (bullet list)  6. Challenges / Analysis  7. Conclusion
 
-TEMPLATE STRUCTURE:
-• REPORT: title-page → table of contents → 4–6 numbered <section>s (Introduction, Background, Analysis, Examples, Conclusion).
-• ASSIGNMENT: short title-page → numbered <section class="question"> blocks, each with question text and an .answer block. 5–10 questions.
-• STUDY_GUIDE: compact title block (no full title page) → topic <section>s with .card highlights, bullet lists, and .key spans for definitions.
+🎯 AUTO-OPTIMIZATION:
+- Medium-length paragraphs (4–7 sentences). Balance content across ~4–6 pages.
+- No overcrowding, no overly short content, smooth reading flow, no repetition.
 
-LAYOUT SAFETY (NON-NEGOTIABLE):
-- NO position:absolute/fixed, NO float, NO flexbox, NO grid, NO transforms, NO images, NO SVG.
-- Simple vertical block layout. No element wider than the page.
-- Avoid unbreakable blocks taller than one page.
+🔁 SELF-CHECK BEFORE OUTPUT:
+✔ No LaTeX  ✔ No $ or \\ commands  ✔ No markdown (#, **, \`\`\`)  ✔ No <table>
+✔ No flexbox/grid/float/absolute  ✔ All tags closed  ✔ Single <style> block
+If any violation → REMOVE or SIMPLIFY. If unsure → use simpler structure.
 
-CONTENT QUALITY:
-- Substantial, accurate, well-organized academic content. Logical flow, no repetition, no filler.
-- Medium length (≈4–6 pages) unless the topic clearly demands more or less.
-
-SELF-CORRECTION LOOP (run mentally before output):
-1. Scan for LaTeX / $ / \\ commands → REMOVE, rewrite as plain text.
-2. Scan for markdown (#, **, \`\`\`) → REMOVE.
-3. Verify every tag is closed, single <style> block, valid CSS.
-4. Verify chosen template's CSS add-ons are included.
-5. If anything risks breaking PDF render → SIMPLIFY or REMOVE.
-
-Return ONLY the complete HTML document, nothing else.`;
+Return ONLY the complete HTML document.`;
 
     case 'vision':
       return `You are TanoAI Vision Assistant. Analyze images in detail: describe elements, extract text, explain math/diagrams with LaTeX, interpret charts.\n${MATH_INSTRUCTIONS}`;
