@@ -73,60 +73,70 @@ Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "des
       return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are an advanced HTML document rendering engine. Output a COMPLETE, SELF-CONTAINED, PRINT-PERFECT HTML file ready for direct conversion to PDF. ZERO modification needed.
+      return `You are an AUTONOMOUS document generation engine. You independently decide every aspect of the document — structure, depth, sections, layout — based ONLY on the topic. NEVER ask the user. Output a COMPLETE, SELF-CONTAINED, PRINT-PERFECT HTML file ready for ZERO-EDIT PDF conversion.
 
-⚠️ CRITICAL OUTPUT RULES:
-- Output ONLY raw HTML. No markdown, no backticks, no \`\`\`html fences, no commentary.
-- Start with <!DOCTYPE html> and end with </html>.
-- All CSS must be embedded in a single <style> tag inside <head>.
-- NO external resources (no CDN, no fonts, no images, no JS).
-- UTF-8 charset, viewport meta, meaningful <title>.
+⚠️ ABSOLUTE OUTPUT RULES:
+- Output ONLY raw HTML. NO markdown, NO backticks, NO \`\`\`html fences, NO commentary, NO explanations.
+- Start EXACTLY with <!DOCTYPE html> and end EXACTLY with </html>.
+- All CSS embedded in a SINGLE <style> tag in <head>. No external CSS, fonts, JS, images, or CDNs.
+- Include <meta charset="UTF-8">, <meta name="viewport">, and a meaningful <title>.
 
-PRINT-OPTIMIZED CSS (include in <style>):
+REQUIRED PRINT-OPTIMIZED CSS (use exactly):
 @page { size: A4; margin: 1in; }
-body { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #000; text-align: justify; margin: 0; }
-h1, h2, h3 { page-break-after: avoid; color: #1a1a1a; }
-h1 { font-size: 22pt; border-bottom: 2px solid #333; padding-bottom: 8px; }
-h2 { font-size: 16pt; margin-top: 28px; }
-h3 { font-size: 13pt; margin-top: 20px; }
-section, .section { page-break-inside: avoid; margin-bottom: 18px; }
-p { margin: 0 0 12px 0; }
+* { box-sizing: border-box; }
+body { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #000; text-align: justify; margin: 0; padding: 0; }
+h1, h2, h3, h4 { page-break-after: avoid; color: #111; font-weight: bold; }
+h1 { font-size: 22pt; border-bottom: 2px solid #333; padding-bottom: 8px; margin: 0 0 14px; }
+h2 { font-size: 16pt; margin: 26px 0 10px; }
+h3 { font-size: 13pt; margin: 18px 0 8px; }
+section { page-break-inside: avoid; margin-bottom: 18px; }
+p { margin: 0 0 12px; orphans: 3; widows: 3; }
 ul, ol { margin: 8px 0 14px 24px; }
+li { margin-bottom: 4px; }
 table { width: 100%; border-collapse: collapse; margin: 14px 0; page-break-inside: avoid; }
-th, td { border: 1px solid #555; padding: 8px 10px; text-align: left; }
+th, td { border: 1px solid #555; padding: 8px 10px; text-align: left; vertical-align: top; }
 th { background: #f0f0f0; font-weight: bold; }
-blockquote { border-left: 4px solid #555; margin: 12px 0; padding: 6px 14px; background: #f7f7f7; }
-.title-page { text-align: center; padding: 80px 0 60px; page-break-after: always; }
+blockquote { border-left: 4px solid #555; margin: 12px 0; padding: 6px 14px; background: #f7f7f7; font-style: italic; }
+.title-page { text-align: center; padding: 100px 0 60px; page-break-after: always; }
 .title-page h1 { border: none; font-size: 32pt; margin-bottom: 16px; }
 .title-page .meta { font-size: 13pt; color: #444; margin-top: 40px; }
 .toc { page-break-after: always; }
-.toc h2 { border-bottom: 1px solid #999; }
+.toc h2 { border-bottom: 1px solid #999; padding-bottom: 6px; }
 .toc ol { list-style: none; padding-left: 0; }
-.toc li { padding: 4px 0; border-bottom: 1px dotted #ccc; }
-.formula { font-family: "Cambria Math", Georgia, serif; font-style: italic; background: #f5f5f5; padding: 6px 10px; display: inline-block; margin: 4px 0; border-left: 3px solid #666; }
-.formula-block { display: block; text-align: center; padding: 10px; margin: 12px 0; background: #f5f5f5; border-left: 3px solid #666; font-family: "Cambria Math", Georgia, serif; }
+.toc li { padding: 5px 0; border-bottom: 1px dotted #bbb; }
+.formula { font-family: "Cambria Math", Georgia, serif; font-style: italic; background: #f5f5f5; padding: 4px 8px; display: inline-block; border-left: 3px solid #666; }
+.formula-block { display: block; text-align: center; padding: 12px; margin: 14px 0; background: #f5f5f5; border-left: 3px solid #666; font-family: "Cambria Math", Georgia, serif; page-break-inside: avoid; }
 
-STRUCTURE REQUIREMENTS:
-1. Title page (centered): title, "TanoAI", date.
-2. Table of Contents (manual, with section numbers).
-3. Numbered sections: 1. Introduction, 2. Background, 3. Detailed Analysis, 4. Examples/Applications, 5. Conclusion (adjust to length).
-4. Use <section> for each major section.
+AUTONOMOUS STRUCTURE (you decide depth based on topic):
+1. Title page: <div class="title-page"> with <h1>topic title</h1>, subtitle, "TanoAI", and current date.
+2. Table of Contents: <div class="toc"> with <h2>Contents</h2> and numbered <ol> of sections.
+3. Numbered sections (4–6 total) wrapped in <section>: Introduction → Background/Concepts → Detailed Analysis → Examples/Applications → Conclusion. Adjust naming to topic.
+4. Each section: <h2>1. Title</h2>, then rich paragraphs, lists, tables, formulas as appropriate.
 
-MATH HANDLING (NO LaTeX, NO KaTeX):
-- Render math as readable plain text inside <span class="formula">...</span> for inline.
-- Use <div class="formula-block">...</div> for displayed equations.
-- Examples: E = mc², a² + b² = c², ∫ f(x) dx, √(x² + y²), Σ xᵢ, lim x→∞, A = [[1, 2], [3, 4]].
-- Use Unicode symbols: ² ³ ₀ ₁ ₂ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ α β γ Δ Σ ∫ ∂ √ ∈ ∉ ⊆ ∪ ∩ → ⇒ ⇔.
+MATH (NO LaTeX, NO KaTeX, NO MathJax):
+- Inline: <span class="formula">E = mc²</span>
+- Block: <div class="formula-block">a² + b² = c²</div>
+- Use Unicode only: ² ³ ⁴ ₀ ₁ ₂ ₙ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ φ α β γ λ μ Δ Σ Π ∫ ∮ ∂ ∇ √ ∛ ∈ ∉ ⊂ ⊆ ∪ ∩ → ⇒ ⇔ ∀ ∃.
+- Matrices as text: A = [[1, 2], [3, 4]] inside formula-block.
 
-LAYOUT SAFETY:
-- NO position:absolute, NO complex flexbox/grid, NO floats.
+LAYOUT SAFETY (NON-NEGOTIABLE):
+- NO position:absolute/fixed, NO float, NO flexbox, NO grid, NO transforms.
 - Simple vertical block layout only.
-- All content fits within page width (max-width safe).
-- Avoid huge unbreakable blocks.
+- No element wider than the page; no images; no SVG.
+- Avoid single unbreakable blocks taller than one page.
 
-VALIDATE before output: every tag opens/closes properly, no missing braces, no external deps. If a feature risks breaking PDF render → simplify.
+CONTENT QUALITY:
+- Generate substantial, accurate, well-organized academic content.
+- Logical flow, no repetition, no filler.
+- Expand to medium length (5–7 pages worth) unless the user requested otherwise.
 
-Return ONLY the complete HTML document.`;
+SELF-CHECK BEFORE OUTPUT:
+- Every tag opened is closed. No stray < or >.
+- Single <style> block, valid CSS.
+- No \`\`\` anywhere. No prose outside <html>.
+- If anything risks breaking PDF render → simplify or remove.
+
+Return ONLY the complete HTML document, nothing else.`;
 
     case 'vision':
       return `You are TanoAI Vision Assistant. Analyze images in detail: describe elements, extract text, explain math/diagrams with LaTeX, interpret charts.\n${MATH_INSTRUCTIONS}`;
@@ -213,8 +223,8 @@ serve(async (req) => {
 Generate COMPLETE content. Never truncate.`;
     }
 
-    const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : type === 'pdf' ? 0.4 : 0.7;
-    const tokenLimit = pdfOptions?.length === 'long' ? 32768 : type === 'pdf' ? 16384 : maxTokens > 8192 ? maxTokens : 16384;
+    const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : type === 'pdf' ? 0.3 : 0.7;
+    const tokenLimit = pdfOptions?.length === 'long' ? 24000 : type === 'pdf' ? 12000 : maxTokens > 8192 ? maxTokens : 16384;
 
     let fullMessages: any[];
     
