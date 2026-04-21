@@ -223,8 +223,8 @@ serve(async (req) => {
 Generate COMPLETE content. Never truncate.`;
     }
 
-    const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : type === 'pdf' ? 0.4 : 0.7;
-    const tokenLimit = pdfOptions?.length === 'long' ? 32768 : type === 'pdf' ? 16384 : maxTokens > 8192 ? maxTokens : 16384;
+    const temperature = type === 'quiz' || type === 'study_plan' ? 0.3 : type === 'pdf' ? 0.3 : 0.7;
+    const tokenLimit = pdfOptions?.length === 'long' ? 24000 : type === 'pdf' ? 12000 : maxTokens > 8192 ? maxTokens : 16384;
 
     let fullMessages: any[];
     
