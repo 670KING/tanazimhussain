@@ -364,9 +364,6 @@ Generate COMPLETE content. Never truncate.`;
       });
     }
 
-    // PDF mode MUST be non-streaming so we can run the sanitizer over the full HTML.
-    const effectiveStream = type === 'pdf' ? false : stream;
-
     if (effectiveStream) {
       const headers = new Headers(corsHeaders);
       headers.set('Content-Type', 'text/event-stream');
