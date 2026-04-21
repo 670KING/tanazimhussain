@@ -178,10 +178,10 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
           downloadFile(txt, `${sanitizedTitle}.txt`, 'text/plain');
           break;
         }
-      }
-      // Handle HTML separately (uses raw model output)
-      if (selectedFormat === 'html') {
-        downloadHTMLFile(generatedContent, `${sanitizedTitle}.html`);
+        case 'html': {
+          downloadHTMLFile(generatedContent, `${sanitizedTitle}.html`);
+          break;
+        }
       }
       
       toast.success(`${selectedFormat.toUpperCase()} downloaded successfully!`);
