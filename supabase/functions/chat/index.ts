@@ -329,7 +329,9 @@ Generate COMPLETE content. Never truncate.`;
       ];
     }
 
-    let response = await callModel(primaryModel, fullMessages, stream, temperature, tokenLimit);
+    // PDF mode MUST be non-streaming so we can run the sanitizer over full HTML.
+    const effectiveStream = type === 'pdf' ? false : stream;
+    let response = await callModel(primaryModel, fullMessages, effectiveStream, temperature, tokenLimit);
     let usedModel = primaryModel;
     let attempts = 1;
 
@@ -340,7 +342,7 @@ Generate COMPLETE content. Never truncate.`;
         if (fallbackModel.name === primaryModel) continue;
         attempts++;
         console.log(`Fallback: ${fallbackModel.name}`);
-        response = await callModel(fallbackModel.name, fullMessages, stream, temperature, tokenLimit);
+        response = await callModel(fallbackModel.name, fullMessages, effectiveStream, temperature, tokenLimit);
         usedModel = fallbackModel.name;
         
         if (response.ok) break;
