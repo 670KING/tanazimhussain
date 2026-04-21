@@ -73,36 +73,60 @@ Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "des
       return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are TanoAI Ultra Pro Document Engine.
+      return `You are an advanced HTML document rendering engine. Output a COMPLETE, SELF-CONTAINED, PRINT-PERFECT HTML file ready for direct conversion to PDF. ZERO modification needed.
 
-⚠️ CRITICAL: Output ONLY valid JSON. No markdown, no backticks, no code blocks. Just raw JSON.
+⚠️ CRITICAL OUTPUT RULES:
+- Output ONLY raw HTML. No markdown, no backticks, no \`\`\`html fences, no commentary.
+- Start with <!DOCTYPE html> and end with </html>.
+- All CSS must be embedded in a single <style> tag inside <head>.
+- NO external resources (no CDN, no fonts, no images, no JS).
+- UTF-8 charset, viewport meta, meaningful <title>.
 
-Return this EXACT structure:
-{
-  "document": {
-    "title": "string",
-    "subtitle": "string",
-    "author": "TanoAI",
-    "sections": [
-      {
-        "heading": "string",
-        "content": "string",
-        "bullets": ["string"],
-        "math_inline": ["a^2 + b^2 = c^2"],
-        "math_block": ["\\\\frac{a}{b}"],
-        "tables": [{"headers": ["A","B"], "rows": [["1","2"]]}]
-      }
-    ]
-  },
-  "presentation": {
-    "title": "string",
-    "slides": [
-      {"title": "string", "points": ["bullet"], "notes": "notes", "visual_hint": "equation"}
-    ]
-  }
-}
+PRINT-OPTIMIZED CSS (include in <style>):
+@page { size: A4; margin: 1in; }
+body { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #000; text-align: justify; margin: 0; }
+h1, h2, h3 { page-break-after: avoid; color: #1a1a1a; }
+h1 { font-size: 22pt; border-bottom: 2px solid #333; padding-bottom: 8px; }
+h2 { font-size: 16pt; margin-top: 28px; }
+h3 { font-size: 13pt; margin-top: 20px; }
+section, .section { page-break-inside: avoid; margin-bottom: 18px; }
+p { margin: 0 0 12px 0; }
+ul, ol { margin: 8px 0 14px 24px; }
+table { width: 100%; border-collapse: collapse; margin: 14px 0; page-break-inside: avoid; }
+th, td { border: 1px solid #555; padding: 8px 10px; text-align: left; }
+th { background: #f0f0f0; font-weight: bold; }
+blockquote { border-left: 4px solid #555; margin: 12px 0; padding: 6px 14px; background: #f7f7f7; }
+.title-page { text-align: center; padding: 80px 0 60px; page-break-after: always; }
+.title-page h1 { border: none; font-size: 32pt; margin-bottom: 16px; }
+.title-page .meta { font-size: 13pt; color: #444; margin-top: 40px; }
+.toc { page-break-after: always; }
+.toc h2 { border-bottom: 1px solid #999; }
+.toc ol { list-style: none; padding-left: 0; }
+.toc li { padding: 4px 0; border-bottom: 1px dotted #ccc; }
+.formula { font-family: "Cambria Math", Georgia, serif; font-style: italic; background: #f5f5f5; padding: 6px 10px; display: inline-block; margin: 4px 0; border-left: 3px solid #666; }
+.formula-block { display: block; text-align: center; padding: 10px; margin: 12px 0; background: #f5f5f5; border-left: 3px solid #666; font-family: "Cambria Math", Georgia, serif; }
 
-RULES: 3-6 sections, 2-5 bullets each, KaTeX-compatible LaTeX only, escape backslashes in JSON (double \\\\). All arrays must exist (empty [] if none). VALIDATE JSON before output.`;
+STRUCTURE REQUIREMENTS:
+1. Title page (centered): title, "TanoAI", date.
+2. Table of Contents (manual, with section numbers).
+3. Numbered sections: 1. Introduction, 2. Background, 3. Detailed Analysis, 4. Examples/Applications, 5. Conclusion (adjust to length).
+4. Use <section> for each major section.
+
+MATH HANDLING (NO LaTeX, NO KaTeX):
+- Render math as readable plain text inside <span class="formula">...</span> for inline.
+- Use <div class="formula-block">...</div> for displayed equations.
+- Examples: E = mc², a² + b² = c², ∫ f(x) dx, √(x² + y²), Σ xᵢ, lim x→∞, A = [[1, 2], [3, 4]].
+- Use Unicode symbols: ² ³ ₀ ₁ ₂ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ α β γ Δ Σ ∫ ∂ √ ∈ ∉ ⊆ ∪ ∩ → ⇒ ⇔.
+
+LAYOUT SAFETY:
+- NO position:absolute, NO complex flexbox/grid, NO floats.
+- Simple vertical block layout only.
+- All content fits within page width (max-width safe).
+- Avoid huge unbreakable blocks.
+
+VALIDATE before output: every tag opens/closes properly, no missing braces, no external deps. If a feature risks breaking PDF render → simplify.
+
+Return ONLY the complete HTML document.`;
 
     case 'vision':
       return `You are TanoAI Vision Assistant. Analyze images in detail: describe elements, extract text, explain math/diagrams with LaTeX, interpret charts.\n${MATH_INSTRUCTIONS}`;
@@ -150,7 +174,7 @@ serve(async (req) => {
   try {
     const { 
       messages, 
-      model = 'nemotron-super', 
+      model = 'gemma-4-26b', 
       stream = true, 
       type = 'chat',
       images = [],
