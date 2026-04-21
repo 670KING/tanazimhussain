@@ -362,7 +362,10 @@ Generate COMPLETE content. Never truncate.`;
       });
     }
 
-    if (stream) {
+    // PDF mode MUST be non-streaming so we can run the sanitizer over the full HTML.
+    const effectiveStream = type === 'pdf' ? false : stream;
+
+    if (effectiveStream) {
       const headers = new Headers(corsHeaders);
       headers.set('Content-Type', 'text/event-stream');
       headers.set('X-Model-Used', usedModel);
@@ -370,6 +373,12 @@ Generate COMPLETE content. Never truncate.`;
       return new Response(response.body, { headers });
     } else {
       const data = await response.json();
+
+      if (type === 'pdf' && data?.choices?.[0]?.message?.content) {
+        const cleaned = sanitizePdfHtml(data.choices[0].message.content);
+        data.choices[0].message.content = cleaned;
+      }
+
       return new Response(JSON.stringify({ ...data, model_used: usedModel }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
