@@ -47,6 +47,7 @@ import {
 } from './PDFExporter';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { parseStructuredDocument, structuredToMarkdown } from '@/lib/math-utils';
+import { printHTMLToPDF, downloadHTMLFile, sanitizeHTMLOutput } from './HTMLPDFExporter';
 
 interface UltraPDFGeneratorProps {
   onGenerateWithAI: (prompt: string, options: PDFOptions) => Promise<string>;
@@ -71,6 +72,7 @@ const DOCUMENT_TYPES = [
 
 const EXPORT_FORMATS = [
   { id: 'pdf', name: 'PDF', icon: FileText, extension: '.pdf' },
+  { id: 'html', name: 'HTML', icon: FileCode, extension: '.html' },
   { id: 'markdown', name: 'Markdown', icon: FileCode, extension: '.md' },
   { id: 'latex', name: 'LaTeX', icon: FileType, extension: '.tex' },
   { id: 'text', name: 'Plain Text', icon: FileText, extension: '.txt' },
@@ -95,7 +97,7 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
   const [includeToC, setIncludeToC] = useState(true);
   const [includeQR, setIncludeQR] = useState(true);
   const [includeSummary, setIncludeSummary] = useState(true);
-  const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'markdown' | 'latex' | 'text'>('pdf');
+  const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'html' | 'markdown' | 'latex' | 'text'>('pdf');
 
   const currentTheme = PDF_THEMES[selectedTheme];
 
@@ -149,8 +151,16 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
 
       switch (selectedFormat) {
         case 'pdf': {
-          const pdfBlob = await generateUltraPDF(exportOptions);
-          downloadFile(pdfBlob, `${sanitizedTitle}.pdf`, 'application/pdf');
+          // New: model returns complete self-contained HTML.
+          // Print via hidden iframe → native browser "Save as PDF".
+          // This is far more reliable than jsPDF for math, Unicode, page breaks.
+          if (/<html[\s>]/i.test(generatedContent) || /<!DOCTYPE/i.test(generatedContent)) {
+            await printHTMLToPDF(generatedContent, `${sanitizedTitle}.pdf`);
+          } else {
+            // Fallback for legacy markdown content
+            const pdfBlob = await generateUltraPDF(exportOptions);
+            downloadFile(pdfBlob, `${sanitizedTitle}.pdf`, 'application/pdf');
+          }
           break;
         }
         case 'markdown': {
@@ -168,6 +178,10 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
           downloadFile(txt, `${sanitizedTitle}.txt`, 'text/plain');
           break;
         }
+      }
+      // Handle HTML separately (uses raw model output)
+      if (selectedFormat === 'html') {
+        downloadHTMLFile(generatedContent, `${sanitizedTitle}.html`);
       }
       
       toast.success(`${selectedFormat.toUpperCase()} downloaded successfully!`);
