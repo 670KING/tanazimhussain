@@ -553,7 +553,7 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {EXPORT_FORMATS.map((format) => (
                   <Button
                     key={format.id}
@@ -635,6 +635,13 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
 // Quick download function for message actions
 export async function quickDownloadPDF(content: string, title: string = 'Document', theme: PDFTheme = 'modern') {
   try {
+    // If the content is already a self-contained HTML document, print directly.
+    if (/<html[\s>]/i.test(content) || /<!DOCTYPE/i.test(content)) {
+      const sanitizedTitle = title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+      await printHTMLToPDF(content, `${sanitizedTitle}.pdf`);
+      return true;
+    }
+
     const pdfBlob = await generateUltraPDF({
       title,
       content,
