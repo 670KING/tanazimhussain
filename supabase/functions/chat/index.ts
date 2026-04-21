@@ -28,6 +28,79 @@ for (const m of [...FREE_TEXT_MODELS, ...FREE_VISION_MODELS]) {
 
 const VISION_MODEL_IDS = FREE_VISION_MODELS.map(m => m.id);
 
+/**
+ * Pre-output HTML sanitizer for PDF mode.
+ * Strips LaTeX/markdown artifacts and replaces them with safe plain text.
+ */
+function sanitizePdfHtml(raw: string): string {
+  let html = raw.trim();
+
+  // 1. Strip code fences (```html ... ```)
+  html = html.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/i, '');
+
+  // 2. Trim anything before <!DOCTYPE or <html
+  const dt = html.search(/<!DOCTYPE\s+html/i);
+  const ht = html.search(/<html[\s>]/i);
+  const start = dt >= 0 ? dt : (ht >= 0 ? ht : -1);
+  if (start > 0) html = html.slice(start);
+
+  // 3. Trim trailing junk after </html>
+  const endIdx = html.lastIndexOf('</html>');
+  if (endIdx >= 0) html = html.slice(0, endIdx + '</html>'.length);
+
+  // 4. Remove LaTeX delimiters and common commands → plain text
+  html = html
+    .replace(/\\begin\{[^}]+\}/g, '')
+    .replace(/\\end\{[^}]+\}/g, '')
+    .replace(/\\frac\s*\{([^}]*)\}\s*\{([^}]*)\}/g, '($1)/($2)')
+    .replace(/\\sqrt\s*\{([^}]*)\}/g, '√($1)')
+    .replace(/\\sum/g, 'Σ')
+    .replace(/\\int/g, '∫')
+    .replace(/\\prod/g, 'Π')
+    .replace(/\\infty/g, '∞')
+    .replace(/\\pi/g, 'π')
+    .replace(/\\theta/g, 'θ')
+    .replace(/\\lambda/g, 'λ')
+    .replace(/\\mu/g, 'μ')
+    .replace(/\\alpha/g, 'α')
+    .replace(/\\beta/g, 'β')
+    .replace(/\\gamma/g, 'γ')
+    .replace(/\\Delta/g, 'Δ')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\times/g, '×')
+    .replace(/\\div/g, '÷')
+    .replace(/\\leq/g, '≤')
+    .replace(/\\geq/g, '≥')
+    .replace(/\\neq/g, '≠')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\to/g, '→')
+    .replace(/\\text\s*\{([^}]*)\}/g, '$1')
+    .replace(/\\\(|\\\)/g, '')
+    .replace(/\\\[|\\\]/g, '')
+    .replace(/\$\$([^$]+)\$\$/g, '$1')
+    .replace(/\$([^$\n]+)\$/g, '$1')
+    // remove any leftover LaTeX commands like \foo or \foo{...}
+    .replace(/\\[a-zA-Z]+\s*\{([^}]*)\}/g, '$1')
+    .replace(/\\[a-zA-Z]+/g, '');
+
+  // 5. Remove markdown artifacts that escaped into HTML text nodes.
+  // Only target obvious leftovers — avoid touching attribute values.
+  html = html
+    .replace(/```[a-zA-Z]*\n?/g, '')
+    .replace(/```/g, '')
+    .replace(/(^|\n)#{1,6}\s+/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/(?<!\w)\*([^*\n]+)\*(?!\w)/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1');
+
+  // 6. If model returned no <html>, wrap minimally
+  if (!/<html[\s>]/i.test(html)) {
+    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Document</title><style>@page{size:A4;margin:1in}body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.5;color:#000}h1{text-align:center}p{text-align:justify}</style></head><body>${html}</body></html>`;
+  }
+
+  return html;
+}
+
 const MATH_INSTRUCTIONS = `
 **CRITICAL - LaTeX Math Formatting (ALWAYS follow these rules exactly):**
 
