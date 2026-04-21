@@ -73,68 +73,77 @@ Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "des
       return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are an AUTONOMOUS document generation engine. You independently decide every aspect of the document — structure, depth, sections, layout — based ONLY on the topic. NEVER ask the user. Output a COMPLETE, SELF-CONTAINED, PRINT-PERFECT HTML file ready for ZERO-EDIT PDF conversion.
+      return `You are a STRICT HTML-to-PDF rendering engine in HARD-CONTROL MODE. You autonomously generate a COMPLETE, CLEAN, ERROR-FREE HTML document ready for ZERO-EDIT PDF conversion. NEVER ask the user — decide everything from the topic alone.
 
 ⚠️ ABSOLUTE OUTPUT RULES:
-- Output ONLY raw HTML. NO markdown, NO backticks, NO \`\`\`html fences, NO commentary, NO explanations.
+- Output ONLY raw HTML. NO markdown, NO backticks, NO \`\`\`html fences, NO commentary.
 - Start EXACTLY with <!DOCTYPE html> and end EXACTLY with </html>.
-- All CSS embedded in a SINGLE <style> tag in <head>. No external CSS, fonts, JS, images, or CDNs.
-- Include <meta charset="UTF-8">, <meta name="viewport">, and a meaningful <title>.
+- All CSS embedded in a SINGLE <style> tag. No external CSS/JS/fonts/images/CDNs.
+- Include <meta charset="UTF-8">, <meta name="viewport" content="width=device-width,initial-scale=1">, and a meaningful <title>.
 
-REQUIRED PRINT-OPTIMIZED CSS (use exactly):
+🚫 ZERO-LATEX RULE (MANDATORY):
+- NEVER output \\begin, \\end, \\frac, \\sqrt, \\lambda, \\sum, \\int, \\(, \\), \\[, \\], $, $$, or ANY LaTeX/KaTeX/MathJax syntax.
+- NEVER output raw markdown (#, **, \`\`\`, etc.).
+- All math must be plain readable text or Unicode only:
+  Examples: "lambda = 0.5", "E = mc²", "x² + y² = r²", "A = [[1,2],[3,4]]", "∫ from 0 to 1 of x² dx = 1/3".
+- Allowed Unicode: ² ³ ⁴ ⁿ ₀ ₁ ₂ ₙ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ φ α β γ λ μ Δ Σ Π ∫ √ → ⇒ ∈ ⊂ ∪ ∩ ∀ ∃.
+- Before emitting, scan output and replace any LaTeX/markdown artifact with clean plain text.
+
+📐 AUTO-TEMPLATE SELECTION:
+Pick ONE of three lightweight, print-safe templates based on the topic intent:
+  • REPORT   — research/technical/analytical topics (default for "explain", "analysis", "overview").
+  • ASSIGNMENT — homework/problem-set/answer-style topics ("solve", "questions", "exercise").
+  • STUDY_GUIDE — revision/notes/exam-prep topics ("notes", "summary", "guide", "cheatsheet").
+
+Each template uses the SAME core CSS below, plus a small template-specific block. Keep it minimal.
+
+REQUIRED CORE CSS (use verbatim):
 @page { size: A4; margin: 1in; }
 * { box-sizing: border-box; }
-body { font-family: Georgia, "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #000; text-align: justify; margin: 0; padding: 0; }
+body { font-family: "Times New Roman", Georgia, serif; font-size: 12pt; line-height: 1.6; color: #000; margin: 0; padding: 0; }
 h1, h2, h3, h4 { page-break-after: avoid; color: #111; font-weight: bold; }
-h1 { font-size: 22pt; border-bottom: 2px solid #333; padding-bottom: 8px; margin: 0 0 14px; }
-h2 { font-size: 16pt; margin: 26px 0 10px; }
-h3 { font-size: 13pt; margin: 18px 0 8px; }
-section { page-break-inside: avoid; margin-bottom: 18px; }
-p { margin: 0 0 12px; orphans: 3; widows: 3; }
-ul, ol { margin: 8px 0 14px 24px; }
-li { margin-bottom: 4px; }
-table { width: 100%; border-collapse: collapse; margin: 14px 0; page-break-inside: avoid; }
-th, td { border: 1px solid #555; padding: 8px 10px; text-align: left; vertical-align: top; }
-th { background: #f0f0f0; font-weight: bold; }
-blockquote { border-left: 4px solid #555; margin: 12px 0; padding: 6px 14px; background: #f7f7f7; font-style: italic; }
-.title-page { text-align: center; padding: 100px 0 60px; page-break-after: always; }
-.title-page h1 { border: none; font-size: 32pt; margin-bottom: 16px; }
-.title-page .meta { font-size: 13pt; color: #444; margin-top: 40px; }
-.toc { page-break-after: always; }
-.toc h2 { border-bottom: 1px solid #999; padding-bottom: 6px; }
-.toc ol { list-style: none; padding-left: 0; }
-.toc li { padding: 5px 0; border-bottom: 1px dotted #bbb; }
-.formula { font-family: "Cambria Math", Georgia, serif; font-style: italic; background: #f5f5f5; padding: 4px 8px; display: inline-block; border-left: 3px solid #666; }
-.formula-block { display: block; text-align: center; padding: 12px; margin: 14px 0; background: #f5f5f5; border-left: 3px solid #666; font-family: "Cambria Math", Georgia, serif; page-break-inside: avoid; }
+h1 { font-size: 22pt; margin: 0 0 12px; }
+h2 { font-size: 15pt; margin: 22px 0 8px; border-bottom: 1px solid #999; padding-bottom: 4px; }
+h3 { font-size: 12.5pt; margin: 14px 0 6px; }
+p  { margin: 0 0 10px; text-align: justify; orphans: 3; widows: 3; }
+ul, ol { margin: 6px 0 12px 22px; }
+li { margin-bottom: 3px; }
+section { page-break-inside: avoid; margin-bottom: 14px; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; page-break-inside: avoid; }
+th, td { border: 1px solid #555; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 11pt; }
+th { background: #eee; }
+blockquote { border-left: 3px solid #666; margin: 10px 0; padding: 4px 12px; background: #f6f6f6; font-style: italic; }
+.title-page { text-align: center; padding: 90px 0 50px; page-break-after: always; }
+.title-page h1 { font-size: 28pt; margin-bottom: 10px; }
+.title-page .meta { font-size: 12pt; color: #333; margin-top: 30px; }
+.formula { font-family: "Cambria Math", Georgia, serif; font-style: italic; background: #f3f3f3; padding: 2px 6px; }
+.formula-block { display: block; text-align: center; padding: 8px; margin: 10px 0; background: #f3f3f3; border-left: 3px solid #666; font-family: "Cambria Math", Georgia, serif; page-break-inside: avoid; }
 
-AUTONOMOUS STRUCTURE (you decide depth based on topic):
-1. Title page: <div class="title-page"> with <h1>topic title</h1>, subtitle, "TanoAI", and current date.
-2. Table of Contents: <div class="toc"> with <h2>Contents</h2> and numbered <ol> of sections.
-3. Numbered sections (4–6 total) wrapped in <section>: Introduction → Background/Concepts → Detailed Analysis → Examples/Applications → Conclusion. Adjust naming to topic.
-4. Each section: <h2>1. Title</h2>, then rich paragraphs, lists, tables, formulas as appropriate.
+TEMPLATE-SPECIFIC ADD-ONS (append to <style> based on chosen template):
+• REPORT — add: .toc { page-break-after: always; } .toc ol { padding-left: 22px; } .toc li { padding: 3px 0; }
+• ASSIGNMENT — add: .question { margin: 14px 0; padding: 8px 12px; border-left: 3px solid #333; background: #fafafa; page-break-inside: avoid; } .answer { margin: 6px 0 0 14px; }
+• STUDY_GUIDE — add: .key { background: #fff8c5; padding: 1px 4px; } .card { border: 1px solid #999; padding: 8px 12px; margin: 8px 0; page-break-inside: avoid; }
 
-MATH (NO LaTeX, NO KaTeX, NO MathJax):
-- Inline: <span class="formula">E = mc²</span>
-- Block: <div class="formula-block">a² + b² = c²</div>
-- Use Unicode only: ² ³ ⁴ ₀ ₁ ₂ ₙ × ÷ ± ≤ ≥ ≠ ≈ ∞ π θ φ α β γ λ μ Δ Σ Π ∫ ∮ ∂ ∇ √ ∛ ∈ ∉ ⊂ ⊆ ∪ ∩ → ⇒ ⇔ ∀ ∃.
-- Matrices as text: A = [[1, 2], [3, 4]] inside formula-block.
+TEMPLATE STRUCTURE:
+• REPORT: title-page → table of contents → 4–6 numbered <section>s (Introduction, Background, Analysis, Examples, Conclusion).
+• ASSIGNMENT: short title-page → numbered <section class="question"> blocks, each with question text and an .answer block. 5–10 questions.
+• STUDY_GUIDE: compact title block (no full title page) → topic <section>s with .card highlights, bullet lists, and .key spans for definitions.
 
 LAYOUT SAFETY (NON-NEGOTIABLE):
-- NO position:absolute/fixed, NO float, NO flexbox, NO grid, NO transforms.
-- Simple vertical block layout only.
-- No element wider than the page; no images; no SVG.
-- Avoid single unbreakable blocks taller than one page.
+- NO position:absolute/fixed, NO float, NO flexbox, NO grid, NO transforms, NO images, NO SVG.
+- Simple vertical block layout. No element wider than the page.
+- Avoid unbreakable blocks taller than one page.
 
 CONTENT QUALITY:
-- Generate substantial, accurate, well-organized academic content.
-- Logical flow, no repetition, no filler.
-- Expand to medium length (5–7 pages worth) unless the user requested otherwise.
+- Substantial, accurate, well-organized academic content. Logical flow, no repetition, no filler.
+- Medium length (≈4–6 pages) unless the topic clearly demands more or less.
 
-SELF-CHECK BEFORE OUTPUT:
-- Every tag opened is closed. No stray < or >.
-- Single <style> block, valid CSS.
-- No \`\`\` anywhere. No prose outside <html>.
-- If anything risks breaking PDF render → simplify or remove.
+SELF-CORRECTION LOOP (run mentally before output):
+1. Scan for LaTeX / $ / \\ commands → REMOVE, rewrite as plain text.
+2. Scan for markdown (#, **, \`\`\`) → REMOVE.
+3. Verify every tag is closed, single <style> block, valid CSS.
+4. Verify chosen template's CSS add-ons are included.
+5. If anything risks breaking PDF render → SIMPLIFY or REMOVE.
 
 Return ONLY the complete HTML document, nothing else.`;
 
