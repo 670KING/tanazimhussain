@@ -267,8 +267,8 @@ function CodeBlock({ children, language, isDark }: CodeBlockProps) {
 
       {/* Code - scrollable container; capped height keeps chat stable */}
       <div
-        className="overflow-auto max-h-[300px] sm:max-h-[400px] w-full"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="overflow-x-auto overflow-y-auto max-h-[300px] sm:max-h-[400px] w-full max-w-full"
+        style={{ WebkitOverflowScrolling: 'touch', boxSizing: 'border-box' }}
       >
         <SyntaxHighlighter
           style={isDark ? oneDark : oneLight}
@@ -279,7 +279,9 @@ function CodeBlock({ children, language, isDark }: CodeBlockProps) {
             padding: '0.5rem 0.75rem',
             background: isDark ? 'hsl(222 47% 9%)' : 'hsl(220 14% 96%)',
             fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
-            minWidth: 'fit-content',
+            minWidth: 0,
+            width: 'max-content',
+            maxWidth: 'none',
             whiteSpace: 'pre',
             wordBreak: 'normal',
           }}
