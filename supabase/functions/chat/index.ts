@@ -26,10 +26,116 @@ for (const m of [...FREE_TEXT_MODELS, ...FREE_VISION_MODELS]) {
 const VISION_MODEL_IDS = FREE_VISION_MODELS.map(m => m.id);
 
 /**
+ * Minimal safe HTML template used as a render fallback when the model
+ * output fails validation/sanitization. Always renders to PDF.
+ */
+export function buildFallbackHtml(title: string, plainText: string): string {
+  const safeTitle = (title || 'Document').replace(/[<>&]/g, (c) =>
+    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' } as Record<string, string>)[c]
+  );
+  // Split into paragraphs on blank lines, escape, wrap.
+  const paragraphs = plainText
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) =>
+      `<p>${p
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, ' ')}</p>`
+    )
+    .join('\n');
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeTitle}</title><style>@page{size:A4;margin:1in}body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.6;color:#000;margin:0}h1{text-align:center;font-size:20pt;margin-bottom:18px}p{text-align:justify;margin:0 0 10px;orphans:3;widows:3}</style></head><body><h1>${safeTitle}</h1>\n${paragraphs || '<p>No content available.</p>'}</body></html>`;
+}
+
+/**
+ * Validate sanitized HTML for PDF rendering safety.
+ * Returns { ok, reasons }. Any failure should trigger fallback rendering.
+ */
+export function validatePdfHtml(html: string): { ok: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  if (!html || html.length < 80) reasons.push('html-too-short');
+  if (!/<!DOCTYPE\s+html/i.test(html)) reasons.push('missing-doctype');
+  if (!/<html[\s>]/i.test(html) || !/<\/html>/i.test(html)) reasons.push('missing-html-tag');
+  if (!/<body[\s>]/i.test(html) || !/<\/body>/i.test(html)) reasons.push('missing-body-tag');
+  // Forbidden artifacts that survived the sanitizer
+  if (/\\begin\{|\\end\{|\\frac|\\sqrt|\\sum|\\int/.test(html)) reasons.push('latex-artifact');
+  if (/\$\$[^$]+\$\$|(?<!\w)\$[^$\n]+\$(?!\w)/.test(html)) reasons.push('dollar-math');
+  if (/```/.test(html)) reasons.push('markdown-fence');
+  if (/<table[\s>]/i.test(html)) reasons.push('forbidden-table');
+  // Tag balance sanity check (rough): ensure roughly balanced < and >
+  const opens = (html.match(/</g) || []).length;
+  const closes = (html.match(/>/g) || []).length;
+  if (Math.abs(opens - closes) > 2) reasons.push('tag-imbalance');
+  return { ok: reasons.length === 0, reasons };
+}
+
+/**
+ * Auto-balance section paragraph counts so the document fits a target
+ * page range without overcrowding. Operates on the body of the HTML.
+ * - short  : ~2-4 sections, max 2 paragraphs/section
+ * - medium : ~4-6 sections, max 3 paragraphs/section
+ * - long   : ~6-9 sections, max 4 paragraphs/section
+ */
+export function autoBalanceSections(html: string, length: 'short' | 'medium' | 'long' = 'medium'): string {
+  const limits = {
+    short:  { maxSections: 4, maxParas: 2, maxParaChars: 700 },
+    medium: { maxSections: 6, maxParas: 3, maxParaChars: 900 },
+    long:   { maxSections: 9, maxParas: 4, maxParaChars: 1100 },
+  }[length];
+
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (!bodyMatch) return html;
+  let body = bodyMatch[1];
+
+  // Cap sections
+  const sectionRegex = /<section\b[\s\S]*?<\/section>/gi;
+  const sections = body.match(sectionRegex) || [];
+  if (sections.length > limits.maxSections) {
+    const kept = sections.slice(0, limits.maxSections).join('\n');
+    // Remove all sections then prepend the kept ones in original order
+    const nonSections = body.replace(sectionRegex, '').trim();
+    body = `${nonSections}\n${kept}`;
+  }
+
+  // Cap paragraphs per section + split overlong paragraphs
+  body = body.replace(sectionRegex, (sec) => {
+    let s = sec;
+    // Split overlong <p>…</p>
+    s = s.replace(/<p>([\s\S]*?)<\/p>/gi, (_m, inner: string) => {
+      const text = inner.trim();
+      if (text.length <= limits.maxParaChars) return `<p>${text}</p>`;
+      // Split on sentence boundaries roughly in half
+      const sentences = text.split(/(?<=[.!?])\s+/);
+      const mid = Math.ceil(sentences.length / 2);
+      const a = sentences.slice(0, mid).join(' ');
+      const b = sentences.slice(mid).join(' ');
+      return `<p>${a}</p>\n<p>${b}</p>`;
+    });
+    // Cap paragraph count
+    const paras = s.match(/<p>[\s\S]*?<\/p>/gi) || [];
+    if (paras.length > limits.maxParas) {
+      const keep = paras.slice(0, limits.maxParas).join('\n');
+      const dropped = paras.slice(limits.maxParas);
+      // Keep ULs and headings intact, just trim extra <p>
+      s = s.replace(/<p>[\s\S]*?<\/p>/gi, '');
+      // Insert kept paragraphs before </section>
+      s = s.replace(/<\/section>/i, `\n${keep}\n</section>`);
+      // Note dropped count for logging
+      console.log(`[autoBalance] dropped ${dropped.length} extra paragraphs in a section`);
+    }
+    return s;
+  });
+
+  return html.replace(/<body[^>]*>[\s\S]*?<\/body>/i, `<body>${body}</body>`);
+}
+
+/**
  * Pre-output HTML sanitizer for PDF mode.
  * Strips LaTeX/markdown artifacts and replaces them with safe plain text.
  */
-function sanitizePdfHtml(raw: string): string {
+export function sanitizePdfHtml(raw: string): string {
   let html = raw.trim();
 
   // 1. Strip code fences (```html ... ```)
@@ -390,8 +496,67 @@ Generate COMPLETE content. Never truncate.`;
       const data = await response.json();
 
       if (type === 'pdf' && data?.choices?.[0]?.message?.content) {
-        const cleaned = sanitizePdfHtml(data.choices[0].message.content);
+        const raw = data.choices[0].message.content as string;
+        let cleaned = sanitizePdfHtml(raw);
+        cleaned = autoBalanceSections(cleaned, pdfOptions?.length || 'medium');
+
+        let validation = validatePdfHtml(cleaned);
+        let usedFallback = false;
+        if (!validation.ok) {
+          console.warn('[pdf] validation failed:', validation.reasons);
+          // Extract plain text from the raw model output for the fallback
+          const stripped = raw
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+          cleaned = buildFallbackHtml(pdfOptions?.title || 'Document', stripped);
+          usedFallback = true;
+          validation = validatePdfHtml(cleaned);
+        }
+
         data.choices[0].message.content = cleaned;
+        (data as any).pdf_meta = {
+          used_fallback: usedFallback,
+          validation_reasons: validation.reasons,
+          balanced_for_length: pdfOptions?.length || 'medium',
+        };
+
+        // Persist sanitized HTML in the user's documents table for replay/debug.
+        try {
+          const authHeader = req.headers.get('Authorization') || '';
+          const jwt = authHeader.replace(/^Bearer\s+/i, '');
+          const supabaseUrl = Deno.env.get('SUPABASE_URL');
+          const supabaseAnon = Deno.env.get('SUPABASE_ANON_KEY');
+          if (jwt && supabaseUrl && supabaseAnon) {
+            const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+              headers: { Authorization: `Bearer ${jwt}`, apikey: supabaseAnon },
+            });
+            if (userRes.ok) {
+              const u = await userRes.json();
+              if (u?.id) {
+                await fetch(`${supabaseUrl}/rest/v1/documents`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    apikey: supabaseAnon,
+                    Authorization: `Bearer ${jwt}`,
+                    Prefer: 'return=minimal',
+                  },
+                  body: JSON.stringify({
+                    user_id: u.id,
+                    title: pdfOptions?.title || 'Generated PDF',
+                    file_type: usedFallback ? 'pdf-html-fallback' : 'pdf-html',
+                    content: cleaned,
+                  }),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[pdf] failed to store document:', e);
+        }
       }
 
       return new Response(JSON.stringify({ ...data, model_used: usedModel }), {
