@@ -1,4 +1,4 @@
-import { Zap, Brain, Sparkles, Cpu, Rocket, Eye, Camera, Shield } from 'lucide-react';
+import { Zap, Cpu, Eye, Camera } from 'lucide-react';
 
 export interface AIModel {
   id: string;
@@ -15,39 +15,9 @@ export interface AIModel {
 // Text-only models - ONLY user-specified free models
 export const AI_MODELS: AIModel[] = [
   {
-    id: 'nemotron-super',
-    name: 'Nemotron 3 Super',
-    description: 'Ultra-powerful 120B',
-    icon: Shield,
-    color: 'text-green-500',
-    context: '262K',
-    provider: 'NVIDIA',
-    specialties: ['Reasoning', 'Academic', 'Science'],
-  },
-  {
-    id: 'gemma-4-26b',
-    name: 'Gemma 4 26B',
-    description: 'Latest Google model',
-    icon: Sparkles,
-    color: 'text-cyan-500',
-    context: '262K',
-    provider: 'Google',
-    specialties: ['General', 'Fast', 'Reasoning'],
-  },
-  {
-    id: 'lfm-thinking',
-    name: 'LFM 2.5 Thinking',
-    description: 'Reasoning specialist',
-    icon: Brain,
-    color: 'text-purple-500',
-    context: '32K',
-    provider: 'LiquidAI',
-    specialties: ['Reasoning', 'Thinking', 'Logic'],
-  },
-  {
     id: 'gpt-oss-120b',
     name: 'GPT-OSS 120B',
-    description: 'OpenAI open-source',
+    description: 'Primary — powerful reasoning',
     icon: Cpu,
     color: 'text-orange-500',
     context: '131K',
@@ -55,14 +25,14 @@ export const AI_MODELS: AIModel[] = [
     specialties: ['Reasoning', 'Math', 'Writing'],
   },
   {
-    id: 'qwen3-next',
-    name: 'Qwen3 Next 80B',
-    description: 'Next-gen Qwen',
-    icon: Rocket,
-    color: 'text-teal-500',
-    context: '262K',
-    provider: 'Qwen',
-    specialties: ['Reasoning', 'Multilingual', 'Long Context'],
+    id: 'ling-flash',
+    name: 'Ling 2.6 Flash',
+    description: 'Secondary — ultra fast',
+    icon: Zap,
+    color: 'text-yellow-500',
+    context: '131K',
+    provider: 'InclusionAI',
+    specialties: ['Fast', 'Short', 'General'],
   },
 ];
 
@@ -102,5 +72,5 @@ export const isVisionModel = (id: string): boolean => {
   return VISION_MODELS.some(m => m.id === id);
 };
 
-export const DEFAULT_MODEL = 'nemotron-super';
+export const DEFAULT_MODEL = 'gpt-oss-120b';
 export const DEFAULT_VISION_MODEL = 'gemma-4-26b-vision';
