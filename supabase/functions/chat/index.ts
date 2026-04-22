@@ -496,8 +496,67 @@ Generate COMPLETE content. Never truncate.`;
       const data = await response.json();
 
       if (type === 'pdf' && data?.choices?.[0]?.message?.content) {
-        const cleaned = sanitizePdfHtml(data.choices[0].message.content);
+        const raw = data.choices[0].message.content as string;
+        let cleaned = sanitizePdfHtml(raw);
+        cleaned = autoBalanceSections(cleaned, pdfOptions?.length || 'medium');
+
+        let validation = validatePdfHtml(cleaned);
+        let usedFallback = false;
+        if (!validation.ok) {
+          console.warn('[pdf] validation failed:', validation.reasons);
+          // Extract plain text from the raw model output for the fallback
+          const stripped = raw
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+          cleaned = buildFallbackHtml(pdfOptions?.title || 'Document', stripped);
+          usedFallback = true;
+          validation = validatePdfHtml(cleaned);
+        }
+
         data.choices[0].message.content = cleaned;
+        (data as any).pdf_meta = {
+          used_fallback: usedFallback,
+          validation_reasons: validation.reasons,
+          balanced_for_length: pdfOptions?.length || 'medium',
+        };
+
+        // Persist sanitized HTML in the user's documents table for replay/debug.
+        try {
+          const authHeader = req.headers.get('Authorization') || '';
+          const jwt = authHeader.replace(/^Bearer\s+/i, '');
+          const supabaseUrl = Deno.env.get('SUPABASE_URL');
+          const supabaseAnon = Deno.env.get('SUPABASE_ANON_KEY');
+          if (jwt && supabaseUrl && supabaseAnon) {
+            const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+              headers: { Authorization: `Bearer ${jwt}`, apikey: supabaseAnon },
+            });
+            if (userRes.ok) {
+              const u = await userRes.json();
+              if (u?.id) {
+                await fetch(`${supabaseUrl}/rest/v1/documents`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    apikey: supabaseAnon,
+                    Authorization: `Bearer ${jwt}`,
+                    Prefer: 'return=minimal',
+                  },
+                  body: JSON.stringify({
+                    user_id: u.id,
+                    title: pdfOptions?.title || 'Generated PDF',
+                    file_type: usedFallback ? 'pdf-html-fallback' : 'pdf-html',
+                    content: cleaned,
+                  }),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[pdf] failed to store document:', e);
+        }
       }
 
       return new Response(JSON.stringify({ ...data, model_used: usedModel }), {
