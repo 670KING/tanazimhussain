@@ -265,8 +265,11 @@ function CodeBlock({ children, language, isDark }: CodeBlockProps) {
         </div>
       </div>
 
-      {/* Code - with horizontal scroll for long lines */}
-      <div className={`overflow-x-auto overflow-y-hidden ${shouldTruncate ? 'max-h-[400px]' : ''}`}>
+      {/* Code - scrollable container; capped height keeps chat stable */}
+      <div
+        className="overflow-auto max-h-[300px] sm:max-h-[400px] w-full"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <SyntaxHighlighter
           style={isDark ? oneDark : oneLight}
           language={language}
@@ -277,6 +280,8 @@ function CodeBlock({ children, language, isDark }: CodeBlockProps) {
             background: isDark ? 'hsl(222 47% 9%)' : 'hsl(220 14% 96%)',
             fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
             minWidth: 'fit-content',
+            whiteSpace: 'pre',
+            wordBreak: 'normal',
           }}
           wrapLines={false}
           wrapLongLines={false}

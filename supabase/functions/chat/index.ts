@@ -9,11 +9,8 @@ const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 
 // ONLY user-specified free models
 const FREE_TEXT_MODELS = [
-  { id: 'nemotron-super', name: 'nvidia/nemotron-3-super-120b-a12b:free', context: 262144 },
-  { id: 'gemma-4-26b', name: 'google/gemma-4-26b-a4b-it:free', context: 262144 },
-  { id: 'lfm-thinking', name: 'liquid/lfm-2.5-1.2b-thinking:free', context: 32768 },
   { id: 'gpt-oss-120b', name: 'openai/gpt-oss-120b:free', context: 131072 },
-  { id: 'qwen3-next', name: 'qwen/qwen3-next-80b-a3b-instruct:free', context: 262144 },
+  { id: 'ling-flash', name: 'inclusionai/ling-2.6-flash:free', context: 131072 },
 ];
 
 const FREE_VISION_MODELS = [
@@ -277,7 +274,7 @@ serve(async (req) => {
   try {
     const { 
       messages, 
-      model = 'gemma-4-26b', 
+      model = 'gpt-oss-120b', 
       stream = true, 
       type = 'chat',
       images = [],
@@ -301,7 +298,7 @@ serve(async (req) => {
         : 'google/gemma-4-26b-a4b-it:free';
       fallbackModels = FREE_VISION_MODELS;
     } else {
-      primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['nemotron-super'];
+      primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['gpt-oss-120b'];
       fallbackModels = FREE_TEXT_MODELS;
     }
 
