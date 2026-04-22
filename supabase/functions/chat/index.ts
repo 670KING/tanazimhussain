@@ -249,9 +249,11 @@ Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "des
       return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
-      return `You are an HTML-to-PDF document engine in SELF-DEFENSIVE MODE. Generate a COMPLETE, STABLE, ERROR-FREE HTML document guaranteed to render correctly as PDF under all conditions. You must actively PREVENT, DETECT, and CORRECT all possible errors.
+      return `You are an advanced HTML-to-PDF document engine in PREMIUM DESIGN + ZERO ERROR + VISUAL INTELLIGENCE MODE.
+Generate a COMPLETE, PROFESSIONAL, PRINT-READY HTML document that looks like a high-quality academic/professional report.
 
-CORE PRINCIPLE: Stability > Consistency > Readability > Design. Never prioritize design over correctness.
+CORE PRIORITY: 1) Rendering stability  2) Visual clarity (diagrams + structure)  3) Professional layout  4) Readability  5) Simplicity.
+Never prioritize design over correctness — but within safe limits, produce a polished, premium-feeling document.
 
 ⚠️ ABSOLUTE OUTPUT RULES:
 - Output ONLY raw HTML. Start EXACTLY with <!DOCTYPE html>, end EXACTLY with </html>.
@@ -271,8 +273,8 @@ CORE PRINCIPLE: Stability > Consistency > Readability > Design. Never prioritize
 - NO markdown: #, ##, **, *, \`, \`\`\`, ~~, ---.
 - NO <table> elements (convert tabular data to bullet points).
 - NO flexbox, grid, float, position:absolute/fixed, transforms, animations.
-- NO decorative styling: shadows, gradients, heavy borders.
-- NO images, NO SVG, NO external resources, NO inline-style overload.
+- NO heavy decorative styling: drop-shadows, gradients, thick colored borders.
+- NO images, NO SVG, NO <canvas>, NO external resources, NO JavaScript, NO inline-style overload.
 
 ✅ MATH/SYMBOLS — plain text or Unicode only:
 - "lambda = 0.5", "E = mc²", "x² + y² = r²", "∫ from 0 to 1 of x² dx = 1/3".
@@ -281,7 +283,24 @@ CORE PRINCIPLE: Stability > Consistency > Readability > Design. Never prioritize
 📋 TABULAR DATA RULE:
 - If data is tabular → convert to BULLET POINTS, never use <table>.
 
-🧱 FIXED HTML TEMPLATE (use this exact skeleton):
+🎨 AUTO DIAGRAM SYSTEM (CRITICAL FEATURE):
+Whenever the topic involves a FLOW, PROCESS, RELATIONSHIP, or SYSTEM STRUCTURE, you MUST insert at least one ASCII diagram.
+- Use ONLY pure ASCII inside <div class="diagram"><pre>...</pre></div>.
+- Allowed glyphs: - | + → ← ↑ ↓ [ ] ( ) / \\ = * and letters/numbers.
+- NO SVG, NO canvas, NO images, NO JS — text-based diagrams only.
+- Each diagram must be centered, monospace, ≤ 70 columns wide so it never overflows A4.
+- Diagrams must visually explain the concept (flowchart, pipeline, hierarchy, cycle).
+Examples:
+  [ Input ] --> [ Process ] --> [ Output ]
+  +--------+    +---------+    +--------+
+  | Stage1 |--->| Stage2  |--->| Stage3 |
+  +--------+    +---------+    +--------+
+
+💡 HIGHLIGHT BLOCKS:
+- For key insights/definitions, wrap in <div class="highlight">...</div>.
+- Use sparingly (max 1 per section) to maintain visual rhythm.
+
+🧱 FIXED HTML TEMPLATE (use this exact skeleton, premium typography, A4-safe):
 <!DOCTYPE html>
 <html>
 <head>
@@ -289,45 +308,55 @@ CORE PRINCIPLE: Stability > Consistency > Readability > Design. Never prioritize
 <title>{Topic Title}</title>
 <style>
 @page { size: A4; margin: 1in; }
-body { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; color: black; margin: 0; }
-h1 { text-align: center; font-size: 20pt; margin-bottom: 20px; page-break-after: avoid; }
-h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 8px; page-break-after: avoid; }
+body { font-family: "Times New Roman", Georgia, serif; font-size: 12pt; line-height: 1.6; color: #111; margin: 0; }
+.container { max-width: 100%; }
+h1 { text-align: center; font-size: 24pt; margin: 0 0 8px; page-break-after: avoid; letter-spacing: 0.3px; }
+.subtitle { text-align: center; font-size: 11pt; color: #555; margin-bottom: 22px; font-style: italic; }
+h2 { font-size: 15pt; margin-top: 22px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #ddd; page-break-after: avoid; }
 h3 { font-size: 12pt; margin-top: 14px; margin-bottom: 6px; page-break-after: avoid; }
 p { text-align: justify; margin: 0 0 10px; orphans: 3; widows: 3; }
-ul, ol { margin: 6px 0 12px 20px; }
-li { margin-bottom: 4px; }
-section { page-break-inside: avoid; margin-bottom: 14px; }
+ul, ol { margin: 6px 0 12px 22px; }
+li { margin-bottom: 5px; }
+section { page-break-inside: avoid; margin-bottom: 16px; }
+.highlight { background: #f5f5f5; border-left: 4px solid #333; padding: 10px 14px; margin: 14px 0; page-break-inside: avoid; }
+.diagram { background: #fafafa; border: 1px solid #ccc; padding: 12px; margin: 14px auto; text-align: center; page-break-inside: avoid; }
+.diagram pre { font-family: "Courier New", monospace; font-size: 10pt; white-space: pre; margin: 0; display: inline-block; text-align: left; }
 </style>
 </head>
 <body>
   <h1>{Title}</h1>
-  <section><h2>Introduction</h2>...</section>
-  <section><h2>Background</h2>...</section>
-  <section><h2>Main Explanation</h2>...</section>
-  <section><h2>Key Points</h2><ul>...</ul></section>
-  <section><h2>Practical Insights</h2>...</section>
-  <section><h2>Conclusion</h2>...</section>
+  <div class="subtitle">{One-line summary of the document}</div>
+  <section><h2>Introduction</h2><p>...</p></section>
+  <section><h2>Core Concepts</h2><p>...</p><div class="highlight">...key insight...</div></section>
+  <section><h2>Detailed Explanation</h2><p>...</p>
+    <div class="diagram"><pre>[ Input ] --> [ Process ] --> [ Output ]</pre></div>
+  </section>
+  <section><h2>Key Points</h2><ul><li>...</li></ul></section>
+  <section><h2>Practical Examples</h2><p>...</p></section>
+  <section><h2>Conclusion</h2><p>...</p></section>
 </body>
 </html>
 
-📐 CONTENT ENGINE — always produce these 7 parts:
-1. Title  2. Introduction  3. Background  4. Main Explanation
-5. Key Points (bullet list)  6. Practical Insights  7. Conclusion
+📐 CONTENT ENGINE — always produce these parts in order:
+1. Title  2. Subtitle  3. Introduction  4. Core Concepts  5. Detailed Explanation (with ≥1 diagram)
+6. Key Points (bullets)  7. Practical Examples  8. Conclusion
 
 🧠 INTELLIGENT SIMPLIFICATION:
 - IF content is complex → simplify.
 - IF layout is risky → flatten structure.
 - IF formatting is mixed → unify into plain text.
+- IF a diagram would exceed 70 cols or look cluttered → simplify it to a single line flow.
 
 🎯 AUTO-OPTIMIZATION:
 - Medium-length paragraphs (4–7 sentences). Balance content across ~4–6 pages.
 - No overcrowding, no overly short content, smooth reading flow, no repetition.
 - Uniform spacing, consistent hierarchy, no visual inconsistency.
+- Insert highlight blocks for definitions/key insights; insert diagrams for processes/flows/relationships.
 
 🔁 SELF-VALIDATION LOOP — run before output, repeat until ZERO issues:
 ✔ No LaTeX  ✔ No $ or \\ commands  ✔ No markdown (#, **, \`\`\`)  ✔ No <table>
-✔ No flexbox/grid/float/absolute  ✔ All tags closed  ✔ Single <style> block
-✔ Uniform structure  ✔ No overflow risk  ✔ Consistent formatting
+✔ No flexbox/grid/float/absolute  ✔ No SVG/canvas/img/script  ✔ All tags closed  ✔ Single <style> block
+✔ Uniform structure  ✔ Diagrams ≤ 70 cols  ✔ No overflow risk  ✔ Consistent formatting
 If ANY violation → REMOVE or SIMPLIFY. If unsure → use simplest version.
 
 FAIL-SAFE: Never attempt risky formatting. Output must render correctly across ALL PDF engines.
