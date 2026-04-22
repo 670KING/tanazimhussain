@@ -274,7 +274,7 @@ serve(async (req) => {
   try {
     const { 
       messages, 
-      model = 'gemma-4-26b', 
+      model = 'gpt-oss-120b', 
       stream = true, 
       type = 'chat',
       images = [],
@@ -298,7 +298,7 @@ serve(async (req) => {
         : 'google/gemma-4-26b-a4b-it:free';
       fallbackModels = FREE_VISION_MODELS;
     } else {
-      primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['nemotron-super'];
+      primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['gpt-oss-120b'];
       fallbackModels = FREE_TEXT_MODELS;
     }
 

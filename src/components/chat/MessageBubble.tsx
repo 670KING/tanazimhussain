@@ -131,7 +131,7 @@ export function MessageBubble({
       {/* Message content */}
       <div
         className={cn(
-          'rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[88%] sm:max-w-[85%] md:max-w-[80%] relative transition-all duration-200 overflow-hidden',
+          'rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[88%] sm:max-w-[85%] md:max-w-[80%] min-w-0 relative transition-all duration-200 overflow-hidden',
           isUser
             ? 'bg-primary text-primary-foreground rounded-tr-md shadow-sm'
             : 'bg-muted/80 rounded-tl-md border border-border/50 hover:border-border'
