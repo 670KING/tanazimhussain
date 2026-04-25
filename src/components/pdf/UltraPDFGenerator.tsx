@@ -239,8 +239,8 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
           <TabsList className="grid grid-cols-3 w-full max-w-md shrink-0 h-9 sm:h-10">
             <TabsTrigger value="generate" className="gap-1 sm:gap-1.5 text-xs sm:text-sm">
               <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Generate</span>
-              <span className="xs:hidden">New</span>
+              <span className="hidden sm:inline">Generate</span>
+              <span className="sm:hidden">New</span>
             </TabsTrigger>
             <TabsTrigger value="preview" disabled={!generatedContent} className="gap-1 sm:gap-1.5 text-xs sm:text-sm">
               <Eye className="w-3.5 h-3.5" />
