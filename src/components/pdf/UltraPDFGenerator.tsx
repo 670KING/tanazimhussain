@@ -409,16 +409,16 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
           </TabsContent>
 
           {/* Preview Tab */}
-          <TabsContent value="preview" className="flex-1 overflow-hidden mt-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+          <TabsContent value="preview" className="flex-1 overflow-hidden mt-3 sm:mt-4 min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 h-full min-h-0">
               {/* Preview Pane */}
-              <div className="lg:col-span-2 flex flex-col overflow-hidden">
+              <div className="lg:col-span-2 flex flex-col overflow-hidden min-h-0">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-sm flex items-center gap-2">
+                  <h3 className="font-medium text-xs sm:text-sm flex items-center gap-2">
                     <Eye className="w-4 h-4" />
                     Live Preview
                   </h3>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
                     <span>{wordCount} words</span>
                     <span>•</span>
                     <span>~{pageEstimate} page{pageEstimate > 1 ? 's' : ''}</span>
@@ -426,7 +426,7 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
                 </div>
                 <div 
                   className={cn(
-                    "flex-1 rounded-lg border overflow-hidden",
+                    "flex-1 rounded-lg border overflow-hidden min-h-[260px]",
                     selectedTheme === 'dark' ? 'bg-[#1e1e23]' : 'bg-white'
                   )}
                 >
@@ -434,12 +434,12 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
                     <iframe
                       title="PDF Preview"
                       srcDoc={sanitizeHTMLOutput(generatedContent)}
-                      className="w-full h-[400px] border-0 bg-white"
+                      className="w-full h-full min-h-[260px] border-0 bg-white"
                       sandbox="allow-same-origin"
                     />
                   ) : (
-                    <ScrollArea className="h-[400px]">
-                      <div className={cn("p-6", selectedTheme === 'dark' && 'text-gray-200')}>
+                    <ScrollArea className="h-full">
+                      <div className={cn("p-3 sm:p-6", selectedTheme === 'dark' && 'text-gray-200')}>
                         <h1 className={cn(
                           "text-2xl font-bold mb-2",
                           selectedTheme === 'academic' && 'font-serif',
