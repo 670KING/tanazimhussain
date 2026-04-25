@@ -9,12 +9,11 @@ import {
   ThumbsUp,
   ThumbsDown,
   Share2,
-  FileImage,
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { quickDownloadPDF } from '@/components/pdf/UltraPDFGenerator';
-import { exportRenderedPDF } from './RenderedPDFExport';
+import { printHTMLToPDF, buildPrintableHTMLFromMarkdown } from '@/components/pdf/HTMLPDFExporter';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,20 +56,22 @@ export function MessageActions({
   };
 
   const downloadAsPDF = async () => {
-    try {
-      await quickDownloadPDF(content, 'TanoAI_Response');
-    } catch (error) {
-      toast.error('Failed to generate PDF');
-    }
-  };
-
-  const downloadAsRenderedPDF = async () => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      await exportRenderedPDF(content, 'TanoAI_Response');
+      // Premium TEXT-BASED PDF: render same markdown (with KaTeX math) into a
+      // print-ready HTML, then print via native browser → real selectable text,
+      // not a flattened image. Works for plain markdown OR self-contained HTML.
+      const isHtml = /<html[\s>]/i.test(content) || /<!DOCTYPE/i.test(content);
+      if (isHtml) {
+        await quickDownloadPDF(content, 'TanoAI_Response');
+      } else {
+        const html = buildPrintableHTMLFromMarkdown(content, 'TanoAI Response');
+        await printHTMLToPDF(html, 'TanoAI_Response.pdf');
+      }
     } catch (error) {
-      // Error already shown in exportRenderedPDF
+      console.error(error);
+      toast.error('Failed to generate PDF');
     } finally {
       setIsExporting(false);
     }
@@ -121,15 +122,11 @@ export function MessageActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={downloadAsRenderedPDF} disabled={isExporting}>
-            <FileImage className="w-4 h-4 mr-2" />
-            PDF with Compiled Math (Best)
+          <DropdownMenuItem onClick={downloadAsPDF} disabled={isExporting}>
+            <FileText className="w-4 h-4 mr-2" />
+            Premium PDF (text + math)
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={downloadAsPDF}>
-            <FileText className="w-4 h-4 mr-2" />
-            PDF (Text-based)
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={downloadAsText}>
             <FileText className="w-4 h-4 mr-2" />
             Plain Text

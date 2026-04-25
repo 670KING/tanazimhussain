@@ -221,39 +221,40 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
           <span className="hidden sm:inline">Generate PDF</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="pb-2">
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+      <DialogContent className="w-[96vw] sm:w-[92vw] max-w-5xl h-[95vh] sm:h-[90vh] p-3 sm:p-6 overflow-hidden flex flex-col">
+        <DialogHeader className="pb-2 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-xl">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shrink-0">
               <FileText className="w-4 h-4 text-primary-foreground" />
             </div>
-            Ultra PDF Generator
-            <Badge variant="secondary" className="ml-2 text-xs">Pro</Badge>
+            <span className="truncate">Ultra PDF Generator</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs shrink-0">Pro</Badge>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm hidden sm:block">
             Generate professional documents with themes, auto-ToC, QR codes, and multiple export formats.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
-            <TabsTrigger value="generate" className="gap-1.5">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <TabsList className="grid grid-cols-3 w-full max-w-md shrink-0 h-9 sm:h-10">
+            <TabsTrigger value="generate" className="gap-1 sm:gap-1.5 text-xs sm:text-sm">
               <Sparkles className="w-3.5 h-3.5" />
-              Generate
+              <span className="hidden sm:inline">Generate</span>
+              <span className="sm:hidden">New</span>
             </TabsTrigger>
-            <TabsTrigger value="preview" disabled={!generatedContent} className="gap-1.5">
+            <TabsTrigger value="preview" disabled={!generatedContent} className="gap-1 sm:gap-1.5 text-xs sm:text-sm">
               <Eye className="w-3.5 h-3.5" />
               Preview
             </TabsTrigger>
-            <TabsTrigger value="export" disabled={!generatedContent} className="gap-1.5">
+            <TabsTrigger value="export" disabled={!generatedContent} className="gap-1 sm:gap-1.5 text-xs sm:text-sm">
               <Download className="w-3.5 h-3.5" />
               Export
             </TabsTrigger>
           </TabsList>
 
           {/* Generate Tab */}
-          <TabsContent value="generate" className="flex-1 overflow-y-auto mt-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TabsContent value="generate" className="flex-1 overflow-y-auto mt-3 sm:mt-4 min-h-0 pr-1">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Left Column - Options */}
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -408,16 +409,16 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
           </TabsContent>
 
           {/* Preview Tab */}
-          <TabsContent value="preview" className="flex-1 overflow-hidden mt-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+          <TabsContent value="preview" className="flex-1 overflow-hidden mt-3 sm:mt-4 min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 h-full min-h-0">
               {/* Preview Pane */}
-              <div className="lg:col-span-2 flex flex-col overflow-hidden">
+              <div className="lg:col-span-2 flex flex-col overflow-hidden min-h-0">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-sm flex items-center gap-2">
+                  <h3 className="font-medium text-xs sm:text-sm flex items-center gap-2">
                     <Eye className="w-4 h-4" />
                     Live Preview
                   </h3>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
                     <span>{wordCount} words</span>
                     <span>•</span>
                     <span>~{pageEstimate} page{pageEstimate > 1 ? 's' : ''}</span>
@@ -425,7 +426,7 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
                 </div>
                 <div 
                   className={cn(
-                    "flex-1 rounded-lg border overflow-hidden",
+                    "flex-1 rounded-lg border overflow-hidden min-h-[260px]",
                     selectedTheme === 'dark' ? 'bg-[#1e1e23]' : 'bg-white'
                   )}
                 >
@@ -433,12 +434,12 @@ export function UltraPDFGenerator({ onGenerateWithAI, isLoading }: UltraPDFGener
                     <iframe
                       title="PDF Preview"
                       srcDoc={sanitizeHTMLOutput(generatedContent)}
-                      className="w-full h-[400px] border-0 bg-white"
+                      className="w-full h-full min-h-[260px] border-0 bg-white"
                       sandbox="allow-same-origin"
                     />
                   ) : (
-                    <ScrollArea className="h-[400px]">
-                      <div className={cn("p-6", selectedTheme === 'dark' && 'text-gray-200')}>
+                    <ScrollArea className="h-full">
+                      <div className={cn("p-3 sm:p-6", selectedTheme === 'dark' && 'text-gray-200')}>
                         <h1 className={cn(
                           "text-2xl font-bold mb-2",
                           selectedTheme === 'academic' && 'font-serif',
