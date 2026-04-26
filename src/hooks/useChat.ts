@@ -178,6 +178,27 @@ export function useChat() {
       updateConversationTitle(conversation.id, content);
     }
 
+    // ---------- INTENT ROUTER (auto-image / auto-pdf) ----------
+    // Skip routing for explicit non-chat types or vision uploads.
+    let detectedIntent: 'text' | 'image' | 'pdf' = 'text';
+    let routerPrompt = '';
+    let routerExplanation = '';
+    let routerTitle = '';
+    if (type === 'chat' && !hasImages) {
+      const routed = await callTool<{
+        intent: 'text' | 'image' | 'pdf';
+        explanation: string;
+        title: string;
+        prompt: string;
+      }>({ tool: 'router', message: content, hasImages: false });
+      if (routed?.intent) {
+        detectedIntent = routed.intent;
+        routerPrompt = routed.prompt || content;
+        routerExplanation = routed.explanation || '';
+        routerTitle = routed.title || '';
+      }
+    }
+
     // Update usage
     const today = new Date().toISOString().split('T')[0];
     const { data: usage } = await supabase
@@ -208,6 +229,13 @@ export function useChat() {
         content: m.content,
       }));
 
+      // Bias the system to also produce a short explanation when image/pdf is chosen.
+      const intentInstruction = detectedIntent === 'image'
+        ? '\n\nThe user wants an image. Provide a beautiful 2-4 sentence explanation/context about the requested visual, formatted in markdown. Do NOT mention you cannot generate images — an image will be attached automatically below your text.'
+        : detectedIntent === 'pdf'
+          ? `\n\nThe user wants a downloadable document about: "${routerPrompt}". Acknowledge in 1-2 friendly sentences that you are preparing the PDF. A download link will appear below your message automatically.`
+          : '';
+
       const response = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
@@ -215,7 +243,9 @@ export function useChat() {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ 
-          messages: allMessages, 
+          messages: intentInstruction
+            ? [...allMessages.slice(0, -1), { ...allMessages[allMessages.length - 1], content: allMessages[allMessages.length - 1].content + intentInstruction }]
+            : allMessages,
           model: effectiveModel, 
           stream: true, 
           type: effectiveType,
