@@ -29,7 +29,6 @@ import { cn } from '@/lib/utils';
 import { AI_MODELS, VISION_MODELS, ALL_MODELS, getModelById, DEFAULT_MODEL, DEFAULT_VISION_MODEL, isVisionModel } from '@/lib/ai-models';
 import { toast } from 'sonner';
 import { CompactImageUpload } from '@/components/chat/ImageUpload';
-import type { PDFOptions } from '@/components/pdf/UltraPDFGenerator';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
