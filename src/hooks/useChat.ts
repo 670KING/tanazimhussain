@@ -358,6 +358,52 @@ export function useChat() {
           content: assistantContent,
         });
       }
+
+      // ---------- POST-STREAM: generate image / pdf in the background ----------
+      const assistantId = (() => {
+        // grab the id of the last assistant msg we just added
+        // (state may not be flushed yet, so use a closure-stable ref via setMessages)
+        return null;
+      })();
+
+      if (detectedIntent === 'image') {
+        // Mark the message as generating an image
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - 1 && m.role === 'assistant'
+            ? { ...m, attachmentTitle: 'Generating image…' }
+            : m
+        ));
+        const out = await callTool<{ url: string }>({
+          tool: 'image',
+          prompt: routerPrompt || content,
+        });
+        setMessages(prev => prev.map((m, i) => {
+          if (i !== prev.length - 1 || m.role !== 'assistant') return m;
+          if (out?.url) return { ...m, generatedImageUrl: out.url, attachmentTitle: undefined };
+          return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Image generation failed. Try again._' };
+        }));
+      } else if (detectedIntent === 'pdf') {
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - 1 && m.role === 'assistant'
+            ? { ...m, attachmentTitle: 'Preparing your document…' }
+            : m
+        ));
+        const out = await callTool<{ url: string; title: string }>({
+          tool: 'pdf',
+          title: routerTitle || content.slice(0, 60),
+          topic: routerPrompt || content,
+        });
+        setMessages(prev => prev.map((m, i) => {
+          if (i !== prev.length - 1 || m.role !== 'assistant') return m;
+          if (out?.url) return {
+            ...m,
+            attachmentUrl: out.url,
+            attachmentTitle: out.title || 'Document',
+            attachmentType: 'html',
+          };
+          return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Document generation failed. Try again._' };
+        }));
+      }
     } catch (error) {
       console.error('Chat error:', error);
       const errorMessage = error instanceof Error ? error.message : 'An error occurred. Please try again.';
