@@ -12,6 +12,11 @@ export interface Message {
   model?: string;
   timestamp?: Date;
   images?: string[];
+  // AI-generated artifacts attached to the assistant message
+  generatedImageUrl?: string;
+  attachmentUrl?: string;
+  attachmentTitle?: string;
+  attachmentType?: 'pdf' | 'html';
 }
 
 export interface Conversation {
@@ -23,6 +28,29 @@ export interface Conversation {
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const TOOLS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tools`;
+
+async function callTool<T = any>(payload: Record<string, unknown>): Promise<T | null> {
+  try {
+    const res = await fetch(TOOLS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const t = await res.json().catch(() => ({}));
+      console.warn('chat-tools error', res.status, t);
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch (e) {
+    console.warn('chat-tools fetch failed', e);
+    return null;
+  }
+}
 
 export function useChat() {
   const { user } = useAuth();
@@ -150,6 +178,27 @@ export function useChat() {
       updateConversationTitle(conversation.id, content);
     }
 
+    // ---------- INTENT ROUTER (auto-image / auto-pdf) ----------
+    // Skip routing for explicit non-chat types or vision uploads.
+    let detectedIntent: 'text' | 'image' | 'pdf' = 'text';
+    let routerPrompt = '';
+    let routerExplanation = '';
+    let routerTitle = '';
+    if (type === 'chat' && !hasImages) {
+      const routed = await callTool<{
+        intent: 'text' | 'image' | 'pdf';
+        explanation: string;
+        title: string;
+        prompt: string;
+      }>({ tool: 'router', message: content, hasImages: false });
+      if (routed?.intent) {
+        detectedIntent = routed.intent;
+        routerPrompt = routed.prompt || content;
+        routerExplanation = routed.explanation || '';
+        routerTitle = routed.title || '';
+      }
+    }
+
     // Update usage
     const today = new Date().toISOString().split('T')[0];
     const { data: usage } = await supabase
@@ -180,6 +229,13 @@ export function useChat() {
         content: m.content,
       }));
 
+      // Bias the system to also produce a short explanation when image/pdf is chosen.
+      const intentInstruction = detectedIntent === 'image'
+        ? '\n\nThe user wants an image. Provide a beautiful 2-4 sentence explanation/context about the requested visual, formatted in markdown. Do NOT mention you cannot generate images — an image will be attached automatically below your text.'
+        : detectedIntent === 'pdf'
+          ? `\n\nThe user wants a downloadable document about: "${routerPrompt}". Acknowledge in 1-2 friendly sentences that you are preparing the PDF. A download link will appear below your message automatically.`
+          : '';
+
       const response = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
@@ -187,7 +243,9 @@ export function useChat() {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ 
-          messages: allMessages, 
+          messages: intentInstruction
+            ? [...allMessages.slice(0, -1), { ...allMessages[allMessages.length - 1], content: allMessages[allMessages.length - 1].content + intentInstruction }]
+            : allMessages,
           model: effectiveModel, 
           stream: true, 
           type: effectiveType,
@@ -299,6 +357,52 @@ export function useChat() {
           role: 'assistant',
           content: assistantContent,
         });
+      }
+
+      // ---------- POST-STREAM: generate image / pdf in the background ----------
+      const assistantId = (() => {
+        // grab the id of the last assistant msg we just added
+        // (state may not be flushed yet, so use a closure-stable ref via setMessages)
+        return null;
+      })();
+
+      if (detectedIntent === 'image') {
+        // Mark the message as generating an image
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - 1 && m.role === 'assistant'
+            ? { ...m, attachmentTitle: 'Generating image…' }
+            : m
+        ));
+        const out = await callTool<{ url: string }>({
+          tool: 'image',
+          prompt: routerPrompt || content,
+        });
+        setMessages(prev => prev.map((m, i) => {
+          if (i !== prev.length - 1 || m.role !== 'assistant') return m;
+          if (out?.url) return { ...m, generatedImageUrl: out.url, attachmentTitle: undefined };
+          return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Image generation failed. Try again._' };
+        }));
+      } else if (detectedIntent === 'pdf') {
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - 1 && m.role === 'assistant'
+            ? { ...m, attachmentTitle: 'Preparing your document…' }
+            : m
+        ));
+        const out = await callTool<{ url: string; title: string }>({
+          tool: 'pdf',
+          title: routerTitle || content.slice(0, 60),
+          topic: routerPrompt || content,
+        });
+        setMessages(prev => prev.map((m, i) => {
+          if (i !== prev.length - 1 || m.role !== 'assistant') return m;
+          if (out?.url) return {
+            ...m,
+            attachmentUrl: out.url,
+            attachmentTitle: out.title || 'Document',
+            attachmentType: 'html',
+          };
+          return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Document generation failed. Try again._' };
+        }));
       }
     } catch (error) {
       console.error('Chat error:', error);

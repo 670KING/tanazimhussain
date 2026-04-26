@@ -294,10 +294,37 @@
 
 .prose-ai pre {
   @apply bg-muted p-2 sm:p-4 rounded-lg overflow-x-auto mb-2 sm:mb-4;
+  /* Hard caps so a giant code block can never blow out the chat layout */
+  max-height: 320px;
+  overflow-y: auto;
+  max-width: 100%;
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
 }
 
 .prose-ai pre code {
   @apply bg-transparent p-0 text-foreground text-[10px] sm:text-sm;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+/* Inline code: still wrap to keep bubble width stable */
+.prose-ai :not(pre) > code {
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* Container guard: any AI message bubble must stay inside the viewport */
+.prose-ai,
+.prose-ai * {
+  max-width: 100%;
+}
+.prose-ai img,
+.prose-ai video {
+  height: auto;
+  max-width: 100%;
 }
 
 .prose-ai strong {
