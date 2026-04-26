@@ -12,6 +12,11 @@ export interface Message {
   model?: string;
   timestamp?: Date;
   images?: string[];
+  // AI-generated artifacts attached to the assistant message
+  generatedImageUrl?: string;
+  attachmentUrl?: string;
+  attachmentTitle?: string;
+  attachmentType?: 'pdf' | 'html';
 }
 
 export interface Conversation {
@@ -23,6 +28,29 @@ export interface Conversation {
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const TOOLS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tools`;
+
+async function callTool<T = any>(payload: Record<string, unknown>): Promise<T | null> {
+  try {
+    const res = await fetch(TOOLS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const t = await res.json().catch(() => ({}));
+      console.warn('chat-tools error', res.status, t);
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch (e) {
+    console.warn('chat-tools fetch failed', e);
+    return null;
+  }
+}
 
 export function useChat() {
   const { user } = useAuth();
