@@ -23,7 +23,7 @@ import { ResumeEditor } from './ResumeEditor';
 import { ResumePreview } from './ResumePreview';
 import { 
   ResumeData, ResumeConfig, ResumeTemplate,
-  DEFAULT_RESUME_DATA, DEFAULT_RESUME_CONFIG 
+  DEFAULT_RESUME_DATA, DEFAULT_RESUME_CONFIG, generateId
 } from './types';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useResumeStorage } from '@/hooks/useResumeStorage';
@@ -93,7 +93,7 @@ export function ResumeBuilder() {
 Original content:
 ${content}`
           }],
-          model: 'mimo-flash',
+          model: 'gpt-oss-120b',
           stream: false,
           type: 'resume',
         }),
@@ -182,7 +182,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no code blocks, j
 
 Make the resume ATS-friendly with strong action verbs and quantified achievements.`
           }],
-          model: 'mimo-flash',
+          model: 'gpt-oss-120b',
           stream: false,
           type: 'resume',
           maxTokens: 4096,
@@ -203,21 +203,111 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
         if (jsonStr.startsWith('```')) {
           jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
         }
-        
-        const resumeData = JSON.parse(jsonStr);
-        
-        // Update the resume data
+
+        // Try to extract a JSON object even if surrounded by stray text
+        const firstBrace = jsonStr.indexOf('{');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+        }
+
+        const raw = JSON.parse(jsonStr);
+
+        // ----- Normalize to our ResumeData shape -----
+        const experience: ResumeData['experience'] = (raw.experience || []).map((e: any) => ({
+          id: e.id || generateId(),
+          company: e.company || '',
+          position: e.position || e.title || '',
+          location: e.location || '',
+          startDate: e.startDate || '',
+          endDate: e.endDate || '',
+          current: typeof e.current === 'boolean'
+            ? e.current
+            : /present|current/i.test(String(e.endDate || '')),
+          description: e.description || '',
+          achievements: Array.isArray(e.achievements) ? e.achievements : [],
+        }));
+
+        const education: ResumeData['education'] = (raw.education || []).map((ed: any) => ({
+          id: ed.id || generateId(),
+          institution: ed.institution || ed.school || '',
+          degree: ed.degree || '',
+          field: ed.field || ed.fieldOfStudy || '',
+          location: ed.location || '',
+          startDate: ed.startDate || '',
+          endDate: ed.endDate || '',
+          gpa: ed.gpa || '',
+          achievements: Array.isArray(ed.achievements) ? ed.achievements : [],
+        }));
+
+        // Skills can come as an array OR an object with categories — flatten safely
+        const skills: ResumeData['skills'] = [];
+        if (Array.isArray(raw.skills)) {
+          raw.skills.forEach((s: any) => {
+            if (typeof s === 'string') {
+              skills.push({ id: generateId(), name: s, level: 'intermediate', category: 'General' });
+            } else if (s && typeof s === 'object') {
+              skills.push({
+                id: s.id || generateId(),
+                name: s.name || '',
+                level: s.level || 'intermediate',
+                category: s.category || 'General',
+              });
+            }
+          });
+        } else if (raw.skills && typeof raw.skills === 'object') {
+          const categoryMap: Record<string, string> = {
+            technical: 'Technical',
+            soft: 'Soft Skills',
+            languages: 'Languages',
+            certifications: 'Certifications',
+          };
+          Object.entries(raw.skills).forEach(([key, list]) => {
+            const category = categoryMap[key] || key;
+            (Array.isArray(list) ? list : []).forEach((name: any) => {
+              if (typeof name === 'string' && name.trim()) {
+                skills.push({
+                  id: generateId(),
+                  name,
+                  level: 'intermediate',
+                  category,
+                });
+              }
+            });
+          });
+        }
+
+        const projects: ResumeData['projects'] = (raw.projects || []).map((p: any) => ({
+          id: p.id || generateId(),
+          name: p.name || '',
+          description: p.description || '',
+          technologies: Array.isArray(p.technologies) ? p.technologies : [],
+          url: p.url || '',
+          startDate: p.startDate || '',
+          endDate: p.endDate || '',
+        }));
+
+        const certifications: ResumeData['certifications'] = (raw.certifications || []).map((c: any) => ({
+          id: c.id || generateId(),
+          name: c.name || '',
+          issuer: c.issuer || '',
+          date: c.date || '',
+          expiryDate: c.expiryDate || '',
+          credentialId: c.credentialId || '',
+          url: c.url || '',
+        }));
+
         setData({
           personalInfo: {
             ...DEFAULT_RESUME_DATA.personalInfo,
-            ...resumeData.personalInfo,
+            ...(raw.personalInfo || {}),
             photo: data.personalInfo.photo, // Keep existing photo
           },
-          experience: resumeData.experience || [],
-          education: resumeData.education || [],
-          skills: resumeData.skills || [],
-          projects: resumeData.projects || [],
-          certifications: resumeData.certifications || [],
+          experience,
+          education,
+          skills,
+          projects,
+          certifications,
         });
         
         toast.success('Resume generated successfully! Review and customize as needed.');

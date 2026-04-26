@@ -259,6 +259,23 @@
   overflow-wrap: break-word;
 }
 
+/* Long URLs / unbroken strings inside chat must never push layout wider */
+.prose-ai p,
+.prose-ai li,
+.prose-ai h1,
+.prose-ai h2,
+.prose-ai h3,
+.prose-ai h4,
+.prose-ai blockquote,
+.prose-ai a,
+.prose-ai strong,
+.prose-ai em {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .prose-ai p {
   @apply mb-2 sm:mb-3 last:mb-0;
 }
