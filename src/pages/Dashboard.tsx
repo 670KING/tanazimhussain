@@ -106,17 +106,6 @@ export default function Dashboard() {
     setAttachedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleGeneratePDF = async (prompt: string, options: PDFOptions): Promise<string> => {
-    const content = await sendMessage(
-      `Generate a ${options.type} about: ${prompt}`,
-      selectedModel,
-      'pdf',
-      [],
-      options
-    );
-    return content;
-  };
-
   const currentModelInfo = getModelById(selectedModel);
   const displayModels = modelTab === 'text' ? AI_MODELS : VISION_MODELS;
 
