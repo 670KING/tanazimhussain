@@ -25,7 +25,10 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
   const processedContent = useMemo(() => preprocessLatex(content), [content]);
 
   return (
-    <div className={`prose-ai break-words overflow-hidden ${className}`}>
+    <div
+      className={`prose-ai break-words overflow-hidden min-w-0 max-w-full ${className}`}
+      style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[
