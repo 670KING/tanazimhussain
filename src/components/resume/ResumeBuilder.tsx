@@ -23,7 +23,7 @@ import { ResumeEditor } from './ResumeEditor';
 import { ResumePreview } from './ResumePreview';
 import { 
   ResumeData, ResumeConfig, ResumeTemplate,
-  DEFAULT_RESUME_DATA, DEFAULT_RESUME_CONFIG 
+  DEFAULT_RESUME_DATA, DEFAULT_RESUME_CONFIG, generateId
 } from './types';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useResumeStorage } from '@/hooks/useResumeStorage';
@@ -93,7 +93,7 @@ export function ResumeBuilder() {
 Original content:
 ${content}`
           }],
-          model: 'mimo-flash',
+          model: 'gpt-oss-120b',
           stream: false,
           type: 'resume',
         }),
@@ -182,7 +182,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no code blocks, j
 
 Make the resume ATS-friendly with strong action verbs and quantified achievements.`
           }],
-          model: 'mimo-flash',
+          model: 'gpt-oss-120b',
           stream: false,
           type: 'resume',
           maxTokens: 4096,
