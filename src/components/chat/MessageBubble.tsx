@@ -4,6 +4,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { MessageActions } from './MessageActions';
 import { StreamingIndicator } from './TypingIndicator';
 import { ContinueButton } from './ContinueButton';
+import { ChartRenderer } from './ChartRenderer';
 import { Bot, User, Clock, ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
 import { Download, Loader2, FileText } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
@@ -165,27 +166,10 @@ export function MessageBubble({
                   content={message.content} 
                   className="text-xs sm:text-sm" 
                 />
-                {/* AI-generated image */}
-                {message.generatedImageUrl && (
-                  <div className="mt-3">
-                    <img
-                      src={message.generatedImageUrl}
-                      alt="AI generated"
-                      loading="lazy"
-                      className="max-w-full sm:max-w-sm rounded-xl border border-border shadow-md cursor-zoom-in hover:opacity-95 transition-opacity"
-                      onClick={() => window.open(message.generatedImageUrl, '_blank')}
-                    />
-                    <a
-                      href={message.generatedImageUrl}
-                      download
-                      className="inline-flex items-center gap-1.5 mt-1.5 text-[10px] sm:text-xs text-primary hover:underline"
-                    >
-                      <Download className="w-3 h-3" /> Download image
-                    </a>
-                  </div>
-                )}
+                {/* AI-generated chart */}
+                {message.chart && <ChartRenderer chart={message.chart} />}
                 {/* Generating placeholder */}
-                {!message.generatedImageUrl && !message.attachmentUrl && message.attachmentTitle && (
+                {!message.chart && !message.attachmentUrl && message.attachmentTitle && (
                   <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/60 border border-border/60 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>{message.attachmentTitle}</span>
