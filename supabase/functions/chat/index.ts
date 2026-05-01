@@ -432,7 +432,7 @@ serve(async (req) => {
     if (isVisionRequest) {
       primaryModel = MODEL_ALIASES[model] && VISION_MODEL_IDS.includes(model) 
         ? MODEL_ALIASES[model] 
-        : 'google/gemma-4-26b-a4b-it:free';
+        : 'google/gemma-4-31b-it:free';
       fallbackModels = FREE_VISION_MODELS;
     } else {
       primaryModel = MODEL_ALIASES[model] || MODEL_ALIASES['gpt-oss-120b'];
