@@ -1,6 +1,6 @@
 // chat-tools edge function
-// Three sub-tools, picked via { tool: 'router' | 'image' | 'pdf' } in the body.
-// All use Lovable AI Gateway (no extra API key needed).
+// Sub-tools picked via { tool: 'router' | 'pdf' | 'chart' }.
+// All powered by OpenRouter free models (no Lovable Gateway, no image gen).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -9,12 +9,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const BUCKET = "chat-attachments";
+
+// Free OpenRouter models (text-only) — small + fast for routing/PDF.
+const ROUTER_MODEL = "openai/gpt-oss-120b:free";
+const PDF_MODEL_PRIMARY = "openai/gpt-oss-120b:free";
+const PDF_MODEL_FALLBACKS = [
+  "tencent/hy3-preview:free",
+  "inclusionai/ling-2.6-1t:free",
+  "google/gemma-4-31b-it:free",
+];
+const CHART_MODEL = "openai/gpt-oss-120b:free";
+const CHART_FALLBACKS = ["google/gemma-4-31b-it:free"];
 
 // ---------- helpers ----------
 
@@ -81,56 +92,75 @@ function errorFromGateway(status: number): Response {
     );
   if (status === 402)
     return jsonResponse(
-      { error: "AI credits exhausted. Add credits in workspace settings." },
+      { error: "AI provider credits exhausted." },
       402
     );
-  return jsonResponse({ error: "AI gateway error" }, 500);
+  return jsonResponse({ error: "AI provider error" }, 500);
+}
+
+async function callOpenRouter(
+  model: string,
+  body: Record<string, unknown>
+): Promise<Response> {
+  return await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://tanoai.lovable.app",
+      "X-Title": "TanoAI",
+    },
+    body: JSON.stringify({ model, ...body }),
+  });
+}
+
+async function callWithFallbacks(
+  models: string[],
+  body: Record<string, unknown>
+): Promise<Response> {
+  let lastErr = 0;
+  for (const m of models) {
+    const res = await callOpenRouter(m, body);
+    if (res.ok) return res;
+    lastErr = res.status;
+    console.warn(`[chat-tools] model ${m} failed: ${res.status}`);
+  }
+  return new Response("all models failed", { status: lastErr || 500 });
 }
 
 // ---------- 1. INTENT ROUTER (tool calling) ----------
 
 async function runRouter(userMessage: string, hasImages: boolean) {
-  // If images attached, always treat as vision text — never auto-generate image.
+  // If images attached, always treat as vision text.
   if (hasImages) {
-    return { intent: "text", explanation: "", title: "", prompt: "" };
+    return { intent: "text", explanation: "", title: "", prompt: "", chart: null as any };
   }
 
+  // Lightweight keyword pre-check — saves a model call for obvious cases.
+  const lower = userMessage.toLowerCase();
+  const wantsChart = /\b(chart|graph|plot|bar\s*graph|line\s*graph|pie\s*chart|histogram|visuali[sz]e|trend)\b/.test(lower);
+  const wantsPdf = /\b(pdf|document|report|notes?|assignment|essay|paper|download|export|print)\b/.test(lower);
+
+  // Use tool-calling on the small free model to decide.
   const tools = [
     {
       type: "function",
       function: {
         name: "decide_action",
         description:
-          "Decide whether to reply with text only, generate an image, or generate a PDF document. Pick the single best action for the user's last message.",
+          "Decide the single best action for the user's last message.",
         parameters: {
           type: "object",
           properties: {
             intent: {
               type: "string",
-              enum: ["text", "image", "pdf"],
+              enum: ["text", "pdf", "chart"],
               description:
-                "text = normal chat answer. image = the user wants a picture/illustration/diagram drawn or visualized. pdf = the user explicitly wants a downloadable document/report/notes/assignment.",
+                "text = normal chat. pdf = user explicitly wants a downloadable document/report/notes/assignment. chart = user wants data visualised as a graph/chart/plot.",
             },
-            image_prompt: {
-              type: "string",
-              description:
-                "If intent=image: a vivid, detailed visual prompt (English) for an image generator. Empty otherwise.",
-            },
-            explanation: {
-              type: "string",
-              description:
-                "If intent=image: a beautiful 2-4 sentence explanation in markdown that will be shown alongside the generated image. Empty otherwise.",
-            },
-            pdf_title: {
-              type: "string",
-              description:
-                "If intent=pdf: short title for the document. Empty otherwise.",
-            },
-            pdf_topic: {
-              type: "string",
-              description:
-                "If intent=pdf: the topic / instructions for the document. Empty otherwise.",
-            },
+            pdf_title: { type: "string" },
+            pdf_topic: { type: "string" },
+            chart_topic: { type: "string" },
           },
           required: ["intent"],
           additionalProperties: false,
@@ -139,142 +169,244 @@ async function runRouter(userMessage: string, hasImages: boolean) {
     },
   ];
 
-  const res = await fetch(GATEWAY, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an intent router. Pick exactly ONE action. Choose 'image' only when the user clearly wants a picture, illustration, drawing, diagram, photo or visual. Choose 'pdf' only when the user clearly asks for a document/file/PDF/report/notes/assignment they can download. Otherwise choose 'text'. Never explain — just call the tool.",
-        },
-        { role: "user", content: userMessage.slice(0, 2000) },
-      ],
-      tools,
-      tool_choice: { type: "function", function: { name: "decide_action" } },
-    }),
+  const res = await callOpenRouter(ROUTER_MODEL, {
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an intent router. Pick exactly ONE action. Use 'chart' only when the user clearly wants a graph/chart/plot/visualisation of data. Use 'pdf' only when the user clearly asks for a document/file/report/notes/assignment they can download. Otherwise 'text'. Never explain — only call the tool.",
+      },
+      { role: "user", content: userMessage.slice(0, 2000) },
+    ],
+    tools,
+    tool_choice: { type: "function", function: { name: "decide_action" } },
+    max_tokens: 200,
+    temperature: 0,
   });
 
-  if (!res.ok) {
-    console.error("router gateway error", res.status, await res.text());
-    return { intent: "text", explanation: "", title: "", prompt: "" };
+  let intent: "text" | "pdf" | "chart" = wantsChart ? "chart" : wantsPdf ? "pdf" : "text";
+  let title = "";
+  let prompt = userMessage;
+
+  if (res.ok) {
+    try {
+      const data = await res.json();
+      const call = data?.choices?.[0]?.message?.tool_calls?.[0];
+      if (call) {
+        const args = JSON.parse(call.function.arguments || "{}");
+        if (args.intent === "pdf" || args.intent === "chart" || args.intent === "text") {
+          intent = args.intent;
+        }
+        title = args.pdf_title || "";
+        prompt = args.pdf_topic || args.chart_topic || userMessage;
+      }
+    } catch (e) {
+      console.warn("[router] parse failed, using keyword heuristic", e);
+    }
+  } else {
+    console.warn("[router] model failed, using keyword heuristic", res.status);
   }
-  const data = await res.json();
-  const call = data?.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) return { intent: "text", explanation: "", title: "", prompt: "" };
-  try {
-    const args = JSON.parse(call.function.arguments || "{}");
-    return {
-      intent: (args.intent as "text" | "image" | "pdf") || "text",
-      explanation: args.explanation || "",
-      title: args.pdf_title || "",
-      prompt: args.image_prompt || args.pdf_topic || "",
-    };
-  } catch {
-    return { intent: "text", explanation: "", title: "", prompt: "" };
-  }
+
+  return { intent, explanation: "", title, prompt, chart: null };
 }
 
-// ---------- 2. IMAGE GENERATION ----------
+// ---------- 2. PDF (HTML) GENERATION with 3 templates ----------
 
-async function runImage(
+type PdfTemplate = "academic" | "modern" | "minimal";
+
+function templateCss(template: PdfTemplate): string {
+  if (template === "modern") {
+    return `@page{size:A4;margin:0.85in}
+      body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11.5pt;line-height:1.6;color:#1a1a1a;margin:0}
+      h1{font-size:26pt;color:#0b5fff;margin:0 0 6px;letter-spacing:-.01em}
+      .subtitle{color:#666;font-size:11pt;margin-bottom:22px}
+      h2{font-size:16pt;color:#0b5fff;margin:22px 0 8px;border-bottom:2px solid #0b5fff;padding-bottom:4px;page-break-after:avoid}
+      h3{font-size:12.5pt;color:#222;margin:14px 0 4px;page-break-after:avoid}
+      p{margin:0 0 9px;text-align:left;orphans:3;widows:3}
+      ul,ol{margin:6px 0 12px 24px}
+      li{margin-bottom:4px}
+      section{page-break-inside:avoid;margin-bottom:14px}
+      .highlight{background:#eef4ff;border-left:4px solid #0b5fff;padding:10px 14px;margin:14px 0;border-radius:4px}
+      .diagram{background:#f7f9fc;border:1px solid #d6e0f0;padding:12px;margin:14px auto;text-align:center}
+      .diagram pre{font-family:"Courier New",monospace;font-size:10pt;white-space:pre;margin:0;display:inline-block;text-align:left}`;
+  }
+  if (template === "minimal") {
+    return `@page{size:A4;margin:1in}
+      body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;margin:0}
+      h1{font-size:20pt;font-weight:300;letter-spacing:1px;text-align:center;margin:0 0 4px;text-transform:uppercase}
+      .subtitle{text-align:center;font-size:10pt;color:#555;margin-bottom:30px;font-style:italic}
+      h2{font-size:13pt;font-weight:600;margin:20px 0 6px;text-transform:uppercase;letter-spacing:.5px;page-break-after:avoid}
+      h3{font-size:11.5pt;font-weight:600;margin:12px 0 4px;page-break-after:avoid}
+      p{margin:0 0 9px;text-align:justify;orphans:3;widows:3}
+      ul,ol{margin:6px 0 12px 22px}
+      li{margin-bottom:4px}
+      section{page-break-inside:avoid;margin-bottom:16px}
+      .highlight{border-top:1px solid #000;border-bottom:1px solid #000;padding:10px 0;margin:14px 0;font-style:italic}
+      .diagram{padding:12px;margin:14px auto;text-align:center}
+      .diagram pre{font-family:"Courier New",monospace;font-size:10pt;white-space:pre;margin:0;display:inline-block;text-align:left}`;
+  }
+  // academic (default)
+  return `@page{size:A4;margin:1in}
+    body{font-family:"Times New Roman",Georgia,serif;font-size:12pt;line-height:1.6;color:#111;margin:0}
+    h1{text-align:center;font-size:24pt;margin:0 0 8px;page-break-after:avoid}
+    .subtitle{text-align:center;font-size:11pt;color:#555;margin-bottom:22px;font-style:italic}
+    h2{font-size:15pt;margin-top:22px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #ddd;page-break-after:avoid}
+    h3{font-size:12pt;margin-top:14px;margin-bottom:6px;page-break-after:avoid}
+    p{text-align:justify;margin:0 0 10px;orphans:3;widows:3}
+    ul,ol{margin:6px 0 12px 22px}
+    li{margin-bottom:5px}
+    section{page-break-inside:avoid;margin-bottom:16px}
+    .highlight{background:#f5f5f5;border-left:4px solid #333;padding:10px 14px;margin:14px 0}
+    .diagram{background:#fafafa;border:1px solid #ccc;padding:12px;margin:14px auto;text-align:center}
+    .diagram pre{font-family:"Courier New",monospace;font-size:10pt;white-space:pre;margin:0;display:inline-block;text-align:left}`;
+}
+
+function pickTemplateFromTopic(topic: string): PdfTemplate {
+  const t = topic.toLowerCase();
+  if (/\b(business|startup|product|marketing|design|portfolio|brand)\b/.test(t)) return "modern";
+  if (/\b(minimal|clean|simple|short|essay|memo|letter)\b/.test(t)) return "minimal";
+  return "academic";
+}
+
+const PDF_SYSTEM_BASE = `You are an HTML body generator for a PDF document.
+Output ONLY the inner HTML of the <body> — NO <!DOCTYPE>, NO <html>, NO <head>, NO <body> tags, NO <style>, NO commentary, NO markdown fences.
+Use ONLY these tags: <h1>, <h2>, <h3>, <p>, <ul>, <ol>, <li>, <section>, <div class="highlight">, <div class="diagram"><pre>...</pre></div>, <strong>, <em>.
+Forbidden: <table>, <img>, <svg>, <script>, <style>, flexbox, grid, position, transforms, LaTeX (\\frac, \\sum, $...$, $$...$$), markdown (#, **, \`\`\`).
+Convert math to plain unicode (² ³ π ≤ ≥ ≈ ∫ Σ √ × ÷). Convert tabular data to bullet lists.
+Structure: Start with one <h1> title, then a single <div class="subtitle"> one-liner, then 4–8 <section> blocks each with one <h2>, well-developed <p> paragraphs (4–7 sentences, justified content), bullet lists where useful. Add at least one <div class="highlight"> for a key insight, and a <div class="diagram"><pre>ASCII flow ≤70 cols</pre></div> when describing a process or system.
+Headings must be informative. Cover: Introduction, Core Concepts, Detailed Explanation, Key Points, Practical Examples / Applications, Conclusion (always include Conclusion last).
+Make the content COMPLETE — never truncate.`;
+
+async function runPdf(
   userId: string,
-  prompt: string,
-  inputImage?: string // optional base64 data URL for editing
+  title: string,
+  topic: string,
+  template: PdfTemplate,
+  length: "short" | "medium" | "long" = "medium"
 ) {
-  const userContent: any[] = [
-    {
-      type: "text",
-      text:
-        (inputImage ? "Edit this image: " : "Generate an image: ") +
-        prompt.slice(0, 1500),
-    },
-  ];
-  if (inputImage) {
-    userContent.push({
-      type: "image_url",
-      image_url: { url: inputImage },
-    });
-  }
+  const safeTitle = (title || topic.slice(0, 80) || "Document").replace(/[<>&]/g, "").slice(0, 120);
+  const lengthHint =
+    length === "short" ? "4 sections, ~2 paragraphs each" :
+    length === "long"  ? "7-8 sections, ~3-4 paragraphs each" :
+                        "5-6 sections, ~3 paragraphs each";
 
-  const res = await fetch(GATEWAY, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
-      messages: [{ role: "user", content: userContent }],
-      modalities: ["image", "text"],
-    }),
+  const res = await callWithFallbacks([PDF_MODEL_PRIMARY, ...PDF_MODEL_FALLBACKS], {
+    messages: [
+      { role: "system", content: PDF_SYSTEM_BASE },
+      {
+        role: "user",
+        content: `Title: ${safeTitle}\nTopic: ${topic.slice(0, 4000)}\nLength: ${lengthHint}`,
+      },
+    ],
+    max_tokens: length === "long" ? 16000 : length === "short" ? 4000 : 9000,
+    temperature: 0.4,
+    stream: false,
   });
 
-  if (!res.ok) throw new Error(`image gateway ${res.status}`);
+  if (!res.ok) throw new Error(`pdf openrouter ${res.status}`);
   const data = await res.json();
-  const dataUrl: string | undefined =
-    data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  if (!dataUrl || !dataUrl.startsWith("data:image/")) {
-    throw new Error("No image returned");
-  }
-  // data:image/png;base64,XXXX
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) throw new Error("Bad image data url");
-  const mime = match[1];
-  const ext = mime.split("/")[1].split("+")[0] || "png";
-  const bytes = base64ToBytes(match[2]);
-  const url = await uploadToBucket(userId, `image.${ext}`, bytes, mime);
-  return { url, mime };
-}
+  let bodyHtml: string = data?.choices?.[0]?.message?.content || "";
 
-// ---------- 3. PDF (HTML) GENERATION ----------
-
-const PDF_SYSTEM_PROMPT = `You are an HTML-to-PDF document engine. Output ONLY raw HTML.
-Start with <!DOCTYPE html>, end with </html>. No markdown, no fences, no commentary.
-Single <style> block. A4 page. Times New Roman 12pt. No <table>, no flexbox/grid, no JS, no images.
-Convert any math to plain unicode (², ³, π, ≤, ≥, ≈, ∫, Σ, √). Replace tabular data with bullet lists.
-Required sections in order: Title (h1, centered), Subtitle (1-line italic), Introduction, Core Concepts, Detailed Explanation, Key Points (bullets), Practical Examples, Conclusion.
-Justified paragraphs, 4–7 sentences each, 4–6 sections total.`;
-
-async function runPdf(userId: string, title: string, topic: string) {
-  const safeTitle = (title || "Document").slice(0, 120);
-  const res = await fetch(GATEWAY, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: PDF_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Title: ${safeTitle}\nTopic: ${topic.slice(0, 4000)}`,
-        },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`pdf gateway ${res.status}`);
-  const data = await res.json();
-  let html: string = data?.choices?.[0]?.message?.content || "";
-  // strip code fences if any
-  html = html
+  // Strip any accidental fences / wrappers
+  bodyHtml = bodyHtml
     .replace(/^```(?:html)?\s*/i, "")
     .replace(/```\s*$/i, "")
+    .replace(/<\/?(?:html|body|head|!doctype[^>]*)\s*>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
     .trim();
-  if (!/<html[\s>]/i.test(html)) {
-    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeTitle}</title><style>@page{size:A4;margin:1in}body{font-family:"Times New Roman",serif;font-size:12pt;line-height:1.6;color:#000}h1{text-align:center}p{text-align:justify;margin:0 0 10px}</style></head><body><h1>${safeTitle}</h1>${html}</body></html>`;
+
+  // Safety: drop LaTeX/markdown leftovers
+  bodyHtml = bodyHtml
+    .replace(/\$\$[^$]*\$\$/g, "")
+    .replace(/\$[^$\n]+\$/g, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/(^|\n)#{1,6}\s+/g, "$1")
+    .replace(/\\[a-zA-Z]+\s*\{[^}]*\}/g, "")
+    .replace(/\\[a-zA-Z]+/g, "");
+
+  if (!bodyHtml || bodyHtml.length < 80) {
+    bodyHtml = `<h1>${safeTitle}</h1><section><p>Document generation produced no content. Please try again.</p></section>`;
+  } else if (!/<h1[\s>]/i.test(bodyHtml)) {
+    bodyHtml = `<h1>${safeTitle}</h1>${bodyHtml}`;
   }
 
+  const css = templateCss(template);
+  const fullHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${safeTitle}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+
   const fileName = `${safeTitle.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60) || "document"}.html`;
-  const url = await uploadToBucket(userId, fileName, html, "text/html; charset=utf-8");
-  return { url, title: safeTitle };
+  const url = await uploadToBucket(userId, fileName, fullHtml, "text/html; charset=utf-8");
+  return { url, title: safeTitle, template };
+}
+
+// ---------- 3. CHART GENERATION (JSON spec for Recharts) ----------
+
+async function runChart(prompt: string) {
+  const tools = [
+    {
+      type: "function",
+      function: {
+        name: "build_chart",
+        description: "Produce data + config for a chart that answers the user's request.",
+        parameters: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["bar", "line", "pie", "area"] },
+            title: { type: "string" },
+            xKey: { type: "string", description: "Field name for x-axis labels (e.g. 'name')." },
+            yKeys: {
+              type: "array",
+              items: { type: "string" },
+              description: "Numeric field names to plot as series.",
+            },
+            data: {
+              type: "array",
+              description: "Array of points, max 24 items. Each item is an object with xKey + yKeys.",
+              items: { type: "object" },
+            },
+            explanation: {
+              type: "string",
+              description: "1-3 sentence markdown explanation of what the chart shows.",
+            },
+          },
+          required: ["type", "title", "xKey", "yKeys", "data"],
+          additionalProperties: false,
+        },
+      },
+    },
+  ];
+
+  const res = await callWithFallbacks([CHART_MODEL, ...CHART_FALLBACKS], {
+    messages: [
+      {
+        role: "system",
+        content:
+          "You generate chart specifications. If the user provides data, use it exactly. If they only describe a topic (e.g. 'plot world population growth'), invent a small realistic illustrative dataset and clearly say so in the explanation. Always pick the most appropriate chart type. Keep data points ≤ 24. Never include nulls.",
+      },
+      { role: "user", content: prompt.slice(0, 4000) },
+    ],
+    tools,
+    tool_choice: { type: "function", function: { name: "build_chart" } },
+    max_tokens: 1500,
+    temperature: 0.2,
+    stream: false,
+  });
+
+  if (!res.ok) throw new Error(`chart openrouter ${res.status}`);
+  const data = await res.json();
+  const call = data?.choices?.[0]?.message?.tool_calls?.[0];
+  if (!call) throw new Error("No chart tool call");
+  const args = JSON.parse(call.function.arguments || "{}");
+  return {
+    chart: {
+      type: args.type,
+      title: args.title,
+      xKey: args.xKey,
+      yKeys: args.yKeys,
+      data: Array.isArray(args.data) ? args.data.slice(0, 24) : [],
+    },
+    explanation: args.explanation || "",
+  };
 }
 
 // ---------- main handler ----------
@@ -285,10 +417,10 @@ serve(async (req) => {
   }
 
   try {
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not configured");
 
     const body = await req.json();
-    const tool = body?.tool as "router" | "image" | "pdf";
+    const tool = body?.tool as "router" | "pdf" | "chart";
 
     if (tool === "router") {
       const result = await runRouter(
@@ -298,35 +430,38 @@ serve(async (req) => {
       return jsonResponse(result);
     }
 
-    // image and pdf require auth
-    const userId = await getUserIdFromAuth(req);
-    if (!userId) return jsonResponse({ error: "unauthorized" }, 401);
-
-    if (tool === "image") {
-      const prompt = String(body?.prompt || "").trim();
+    if (tool === "chart") {
+      const prompt = String(body?.prompt || body?.message || "").trim();
       if (!prompt) return jsonResponse({ error: "prompt required" }, 400);
       try {
-        const out = await runImage(userId, prompt, body?.inputImage);
+        const out = await runChart(prompt);
         return jsonResponse(out);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (/429/.test(msg)) return errorFromGateway(429);
-        if (/402/.test(msg)) return errorFromGateway(402);
-        console.error("image error:", msg);
-        return jsonResponse({ error: "Image generation failed" }, 500);
+        console.error("chart error:", msg);
+        return jsonResponse({ error: "Chart generation failed" }, 500);
       }
     }
 
     if (tool === "pdf") {
+      // pdf requires auth (uploads to user's storage path)
+      const userId = await getUserIdFromAuth(req);
+      if (!userId) return jsonResponse({ error: "unauthorized" }, 401);
       const topic = String(body?.topic || body?.prompt || "").trim();
       if (!topic) return jsonResponse({ error: "topic required" }, 400);
+      const reqTpl = String(body?.template || "").toLowerCase();
+      const template: PdfTemplate =
+        reqTpl === "academic" || reqTpl === "modern" || reqTpl === "minimal"
+          ? (reqTpl as PdfTemplate)
+          : pickTemplateFromTopic(topic);
+      const length = (String(body?.length || "medium") as "short" | "medium" | "long");
       try {
-        const out = await runPdf(userId, String(body?.title || ""), topic);
+        const out = await runPdf(userId, String(body?.title || ""), topic, template, length);
         return jsonResponse(out);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (/429/.test(msg)) return errorFromGateway(429);
-        if (/402/.test(msg)) return errorFromGateway(402);
         console.error("pdf error:", msg);
         return jsonResponse({ error: "PDF generation failed" }, 500);
       }
