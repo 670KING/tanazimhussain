@@ -7,15 +7,17 @@ const corsHeaders = {
 
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 
-// ONLY user-specified free models
+// ONLY user-specified free OpenRouter models
 const FREE_TEXT_MODELS = [
-  { id: 'gpt-oss-120b', name: 'openai/gpt-oss-120b:free', context: 131072 },
-  { id: 'ling-flash', name: 'inclusionai/ling-2.6-flash:free', context: 131072 },
+  { id: 'gpt-oss-120b',     name: 'openai/gpt-oss-120b:free',         context: 131072 },
+  { id: 'hy3-preview',      name: 'tencent/hy3-preview:free',         context: 131072 },
+  { id: 'ling-2.6-1t',      name: 'inclusionai/ling-2.6-1t:free',     context: 131072 },
+  { id: 'gemma-4-31b',      name: 'google/gemma-4-31b-it:free',       context: 131072 },
 ];
 
 const FREE_VISION_MODELS = [
-  { id: 'gemma-4-26b-vision', name: 'google/gemma-4-26b-a4b-it:free', context: 262144 },
-  { id: 'nemotron-nano-vl', name: 'nvidia/nemotron-nano-12b-v2-vl:free', context: 128000 },
+  { id: 'gemma-4-31b-vision', name: 'google/gemma-4-31b-it:free',                          context: 131072 },
+  { id: 'nemotron-omni',      name: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',  context: 128000 },
 ];
 
 const MODEL_ALIASES: Record<string, string> = {};
