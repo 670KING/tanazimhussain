@@ -13,10 +13,19 @@ export interface Message {
   timestamp?: Date;
   images?: string[];
   // AI-generated artifacts attached to the assistant message
-  generatedImageUrl?: string;
   attachmentUrl?: string;
   attachmentTitle?: string;
   attachmentType?: 'pdf' | 'html';
+  // Inline chart spec rendered in the message bubble
+  chart?: ChartSpec;
+}
+
+export interface ChartSpec {
+  type: 'bar' | 'line' | 'pie' | 'area';
+  title: string;
+  xKey: string;
+  yKeys: string[];
+  data: Record<string, string | number>[];
 }
 
 export interface Conversation {
@@ -180,13 +189,12 @@ export function useChat() {
 
     // ---------- INTENT ROUTER (auto-image / auto-pdf) ----------
     // Skip routing for explicit non-chat types or vision uploads.
-    let detectedIntent: 'text' | 'image' | 'pdf' = 'text';
+    let detectedIntent: 'text' | 'pdf' | 'chart' = 'text';
     let routerPrompt = '';
-    let routerExplanation = '';
     let routerTitle = '';
     if (type === 'chat' && !hasImages) {
       const routed = await callTool<{
-        intent: 'text' | 'image' | 'pdf';
+        intent: 'text' | 'pdf' | 'chart';
         explanation: string;
         title: string;
         prompt: string;
@@ -194,7 +202,6 @@ export function useChat() {
       if (routed?.intent) {
         detectedIntent = routed.intent;
         routerPrompt = routed.prompt || content;
-        routerExplanation = routed.explanation || '';
         routerTitle = routed.title || '';
       }
     }
@@ -230,10 +237,11 @@ export function useChat() {
       }));
 
       // Bias the system to also produce a short explanation when image/pdf is chosen.
-      const intentInstruction = detectedIntent === 'image'
-        ? '\n\nThe user wants an image. Provide a beautiful 2-4 sentence explanation/context about the requested visual, formatted in markdown. Do NOT mention you cannot generate images — an image will be attached automatically below your text.'
-        : detectedIntent === 'pdf'
-          ? `\n\nThe user wants a downloadable document about: "${routerPrompt}". Acknowledge in 1-2 friendly sentences that you are preparing the PDF. A download link will appear below your message automatically.`
+      const intentInstruction =
+        detectedIntent === 'pdf'
+          ? `\n\nThe user wants a downloadable PDF about: "${routerPrompt}". Acknowledge in 1-2 friendly sentences that you are preparing the document. A download link will appear below your message automatically.`
+        : detectedIntent === 'chart'
+          ? `\n\nThe user wants a chart/graph. Provide a 2-4 sentence markdown explanation of what the chart shows. The chart itself will render automatically below your text — do NOT try to draw it in ASCII or markdown.`
           : '';
 
       const response = await fetch(CHAT_URL, {
@@ -359,39 +367,18 @@ export function useChat() {
         });
       }
 
-      // ---------- POST-STREAM: generate image / pdf in the background ----------
-      const assistantId = (() => {
-        // grab the id of the last assistant msg we just added
-        // (state may not be flushed yet, so use a closure-stable ref via setMessages)
-        return null;
-      })();
-
-      if (detectedIntent === 'image') {
-        // Mark the message as generating an image
-        setMessages(prev => prev.map((m, i) =>
-          i === prev.length - 1 && m.role === 'assistant'
-            ? { ...m, attachmentTitle: 'Generating image…' }
-            : m
-        ));
-        const out = await callTool<{ url: string }>({
-          tool: 'image',
-          prompt: routerPrompt || content,
-        });
-        setMessages(prev => prev.map((m, i) => {
-          if (i !== prev.length - 1 || m.role !== 'assistant') return m;
-          if (out?.url) return { ...m, generatedImageUrl: out.url, attachmentTitle: undefined };
-          return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Image generation failed. Try again._' };
-        }));
-      } else if (detectedIntent === 'pdf') {
+      // ---------- POST-STREAM: generate pdf or chart in the background ----------
+      if (detectedIntent === 'pdf') {
         setMessages(prev => prev.map((m, i) =>
           i === prev.length - 1 && m.role === 'assistant'
             ? { ...m, attachmentTitle: 'Preparing your document…' }
             : m
         ));
-        const out = await callTool<{ url: string; title: string }>({
+        const out = await callTool<{ url: string; title: string; template: string }>({
           tool: 'pdf',
           title: routerTitle || content.slice(0, 60),
           topic: routerPrompt || content,
+          length: 'medium',
         });
         setMessages(prev => prev.map((m, i) => {
           if (i !== prev.length - 1 || m.role !== 'assistant') return m;
@@ -402,6 +389,23 @@ export function useChat() {
             attachmentType: 'html',
           };
           return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Document generation failed. Try again._' };
+        }));
+      } else if (detectedIntent === 'chart') {
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - 1 && m.role === 'assistant'
+            ? { ...m, attachmentTitle: 'Building chart…' }
+            : m
+        ));
+        const out = await callTool<{ chart: ChartSpec; explanation: string }>({
+          tool: 'chart',
+          prompt: routerPrompt || content,
+        });
+        setMessages(prev => prev.map((m, i) => {
+          if (i !== prev.length - 1 || m.role !== 'assistant') return m;
+          if (out?.chart && Array.isArray(out.chart.data) && out.chart.data.length > 0) {
+            return { ...m, chart: out.chart, attachmentTitle: undefined };
+          }
+          return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Chart generation failed. Try again._' };
         }));
       }
     } catch (error) {
