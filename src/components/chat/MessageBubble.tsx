@@ -9,6 +9,8 @@ import { Bot, User, Clock, ImageIcon, AlertCircle, RefreshCw } from 'lucide-reac
 import { Download, Loader2, FileText } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { isResponseTruncated } from '@/lib/math-utils';
+import { htmlToPdfDownload } from '@/lib/htmlToPdf';
+import { toast } from 'sonner';
 
 interface MessageBubbleProps {
   message: Message;
@@ -113,6 +115,26 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isTruncated = !isUser && isLastAssistant && !isStreaming && isResponseTruncated(message.content);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!message.attachmentHtml || downloading) return;
+    setDownloading(true);
+    try {
+      const safe = (message.attachmentTitle || 'Document')
+        .replace(/[^a-z0-9-_ ]+/gi, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 60) || 'Document';
+      await htmlToPdfDownload(message.attachmentHtml, `${safe}.pdf`);
+      toast.success('PDF downloaded');
+    } catch (e) {
+      console.error('PDF download failed', e);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setDownloading(false);
+    }
+  }, [message.attachmentHtml, message.attachmentTitle, downloading]);
 
   return (
     <div className={cn('flex items-start gap-2 sm:gap-3 group', isUser && 'flex-row-reverse')}>
@@ -169,14 +191,40 @@ export function MessageBubble({
                 {/* AI-generated chart */}
                 {message.chart && <ChartRenderer chart={message.chart} />}
                 {/* Generating placeholder */}
-                {!message.chart && !message.attachmentUrl && message.attachmentTitle && (
+                {!message.chart && !message.attachmentUrl && !message.attachmentHtml && message.attachmentTitle && (
                   <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/60 border border-border/60 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>{message.attachmentTitle}</span>
                   </div>
                 )}
-                {/* Generated PDF/HTML download bubble */}
-                {message.attachmentUrl && (
+                {/* Inline-HTML PDF — generated on click in the browser */}
+                {message.attachmentHtml && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    disabled={downloading}
+                    className="mt-3 w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors group/link disabled:opacity-70 disabled:cursor-wait text-left"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                      {downloading ? (
+                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                      ) : (
+                        <FileText className="w-4 h-4 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs sm:text-sm font-medium text-foreground truncate">
+                        {message.attachmentTitle || 'Document'}
+                      </div>
+                      <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                        {downloading ? 'Generating PDF…' : 'Tap to download · PDF'}
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 text-primary group-hover/link:translate-y-0.5 transition-transform" />
+                  </button>
+                )}
+                {/* Legacy: hosted file URL */}
+                {message.attachmentUrl && !message.attachmentHtml && (
                   <a
                     href={message.attachmentUrl}
                     target="_blank"
