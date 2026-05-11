@@ -6,11 +6,10 @@ import { StreamingIndicator } from './TypingIndicator';
 import { ContinueButton } from './ContinueButton';
 import { ChartRenderer } from './ChartRenderer';
 import { Bot, User, Clock, ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
-import { Download, Loader2, FileText } from 'lucide-react';
+import { Download, Loader2, FileText, Eye } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { isResponseTruncated } from '@/lib/math-utils';
-import { htmlToPdfDownload } from '@/lib/htmlToPdf';
-import { toast } from 'sonner';
+import { PDFPreviewDialog } from './PDFPreviewDialog';
 
 interface MessageBubbleProps {
   message: Message;
@@ -115,26 +114,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isTruncated = !isUser && isLastAssistant && !isStreaming && isResponseTruncated(message.content);
-  const [downloading, setDownloading] = useState(false);
-
-  const handleDownloadPdf = useCallback(async () => {
-    if (!message.attachmentHtml || downloading) return;
-    setDownloading(true);
-    try {
-      const safe = (message.attachmentTitle || 'Document')
-        .replace(/[^a-z0-9-_ ]+/gi, '')
-        .trim()
-        .replace(/\s+/g, '_')
-        .slice(0, 60) || 'Document';
-      await htmlToPdfDownload(message.attachmentHtml, `${safe}.pdf`);
-      toast.success('PDF downloaded');
-    } catch (e) {
-      console.error('PDF download failed', e);
-      toast.error('Failed to generate PDF');
-    } finally {
-      setDownloading(false);
-    }
-  }, [message.attachmentHtml, message.attachmentTitle, downloading]);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   return (
     <div className={cn('flex items-start gap-2 sm:gap-3 group', isUser && 'flex-row-reverse')}>
@@ -199,29 +179,32 @@ export function MessageBubble({
                 )}
                 {/* Inline-HTML PDF — generated on click in the browser */}
                 {message.attachmentHtml && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadPdf}
-                    disabled={downloading}
-                    className="mt-3 w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors group/link disabled:opacity-70 disabled:cursor-wait text-left"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                      {downloading ? (
-                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                      ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOpen(true)}
+                      className="mt-3 w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors group/link text-left"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
                         <FileText className="w-4 h-4 text-primary" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs sm:text-sm font-medium text-foreground truncate">
-                        {message.attachmentTitle || 'Document'}
                       </div>
-                      <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                        {downloading ? 'Generating PDF…' : 'Tap to download · PDF'}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs sm:text-sm font-medium text-foreground truncate">
+                          {message.attachmentTitle || 'Document'}
+                        </div>
+                        <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                          Tap to preview · PDF
+                        </div>
                       </div>
-                    </div>
-                    <Download className="w-4 h-4 text-primary group-hover/link:translate-y-0.5 transition-transform" />
-                  </button>
+                      <Eye className="w-4 h-4 text-primary group-hover/link:scale-110 transition-transform" />
+                    </button>
+                    <PDFPreviewDialog
+                      open={previewOpen}
+                      onOpenChange={setPreviewOpen}
+                      html={message.attachmentHtml}
+                      title={message.attachmentTitle || 'Document'}
+                    />
+                  </>
                 )}
                 {/* Legacy: hosted file URL */}
                 {message.attachmentUrl && !message.attachmentHtml && (
