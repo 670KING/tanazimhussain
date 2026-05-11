@@ -37,6 +37,22 @@ export function sanitizeBodyHtml(raw: string): string {
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
 
+  // Wrap orphan text lines (text not inside any block tag) into <p>.
+  // Splits on blank lines so paragraph grouping is preserved.
+  html = html
+    .split(/\n{2,}/)
+    .map((chunk) => {
+      const t = chunk.trim();
+      if (!t) return '';
+      // Already starts with a block-level tag? leave it.
+      if (/^<(h[1-6]|p|ul|ol|li|section|div|blockquote|pre|figure|table)\b/i.test(t)) return t;
+      // Mixed: contains some block tags — leave as-is to avoid double wrap.
+      if (/<(h[1-6]|p|section|ul|ol|div|blockquote|pre)\b/i.test(t)) return t;
+      return `<p>${t.replace(/\n/g, ' ')}</p>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
   return html.trim();
 }
 
