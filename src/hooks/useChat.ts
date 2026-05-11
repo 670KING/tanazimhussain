@@ -14,6 +14,7 @@ export interface Message {
   images?: string[];
   // AI-generated artifacts attached to the assistant message
   attachmentUrl?: string;
+  attachmentHtml?: string;
   attachmentTitle?: string;
   attachmentType?: 'pdf' | 'html';
   // Inline chart spec rendered in the message bubble
@@ -377,7 +378,7 @@ export function useChat() {
             ? { ...m, attachmentTitle: 'Preparing your document…' }
             : m
         ));
-        const out = await callTool<{ url: string; title: string; template: string }>({
+        const out = await callTool<{ html: string; title: string; template: string }>({
           tool: 'pdf',
           title: routerTitle || content.slice(0, 60),
           topic: routerPrompt || content,
@@ -385,11 +386,11 @@ export function useChat() {
         });
         setMessages(prev => prev.map((m, i) => {
           if (i !== prev.length - 1 || m.role !== 'assistant') return m;
-          if (out?.url) return {
+          if (out?.html) return {
             ...m,
-            attachmentUrl: out.url,
+            attachmentHtml: out.html,
             attachmentTitle: out.title || 'Document',
-            attachmentType: 'html',
+            attachmentType: 'pdf',
           };
           return { ...m, attachmentTitle: undefined, content: m.content + '\n\n_⚠️ Document generation failed. Try again._' };
         }));
