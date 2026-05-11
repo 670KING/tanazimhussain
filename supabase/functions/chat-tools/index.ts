@@ -271,7 +271,6 @@ Headings must be informative. Cover: Introduction, Core Concepts, Detailed Expla
 Make the content COMPLETE — never truncate.`;
 
 async function runPdf(
-  userId: string,
   title: string,
   topic: string,
   template: PdfTemplate,
@@ -327,9 +326,7 @@ async function runPdf(
   const css = templateCss(template);
   const fullHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${safeTitle}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
 
-  const fileName = `${safeTitle.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60) || "document"}.html`;
-  const url = await uploadToBucket(userId, fileName, fullHtml, "text/html; charset=utf-8");
-  return { url, title: safeTitle, template };
+  return { html: fullHtml, title: safeTitle, template };
 }
 
 // ---------- 3. CHART GENERATION (JSON spec for Recharts) ----------
@@ -438,9 +435,6 @@ serve(async (req) => {
     }
 
     if (tool === "pdf") {
-      // pdf requires auth (uploads to user's storage path)
-      const userId = await getUserIdFromAuth(req);
-      if (!userId) return jsonResponse({ error: "unauthorized" }, 401);
       const topic = String(body?.topic || body?.prompt || "").trim();
       if (!topic) return jsonResponse({ error: "topic required" }, 400);
       const reqTpl = String(body?.template || "").toLowerCase();
@@ -450,7 +444,7 @@ serve(async (req) => {
           : pickTemplateFromTopic(topic);
       const length = (String(body?.length || "medium") as "short" | "medium" | "long");
       try {
-        const out = await runPdf(userId, String(body?.title || ""), topic, template, length);
+        const out = await runPdf(String(body?.title || ""), topic, template, length);
         return jsonResponse(out);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
