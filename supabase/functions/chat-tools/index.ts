@@ -2,6 +2,7 @@
 // Sub-tools picked via { tool: 'router' | 'pdf' | 'chart' }.
 // All powered by OpenRouter free models (no Lovable Gateway, no image gen).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { processPdfHtml } from "./sanitizer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -311,30 +312,16 @@ async function runPdf(
 
   if (!res.ok) throw new Error(`pdf openrouter ${res.status}`);
   const data = await res.json();
-  let bodyHtml: string = data?.choices?.[0]?.message?.content || "";
+  const raw: string = data?.choices?.[0]?.message?.content || "";
 
-  // Strip any accidental fences / wrappers
-  bodyHtml = bodyHtml
-    .replace(/^```(?:html)?\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .replace(/<\/?(?:html|body|head|!doctype[^>]*)\s*>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .trim();
-
-  // Safety: drop LaTeX/markdown leftovers
-  bodyHtml = bodyHtml
-    .replace(/\$\$[^$]*\$\$/g, "")
-    .replace(/\$[^$\n]+\$/g, "")
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/(^|\n)#{1,6}\s+/g, "$1")
-    .replace(/\\[a-zA-Z]+\s*\{[^}]*\}/g, "")
-    .replace(/\\[a-zA-Z]+/g, "");
+  let { html: bodyHtml, validation } = processPdfHtml(raw, safeTitle);
 
   if (!bodyHtml || bodyHtml.length < 80) {
     bodyHtml = `<h1>${safeTitle}</h1><section><p>Document generation produced no content. Please try again.</p></section>`;
-  } else if (!/<h1[\s>]/i.test(bodyHtml)) {
-    bodyHtml = `<h1>${safeTitle}</h1>${bodyHtml}`;
+    validation = { ok: true, reasons: [], stats: { h1: 1, h2: 0, sections: 1, paragraphs: 1, lists: 0 } };
+  }
+  if (!validation.ok) {
+    console.warn("[pdf] validation issues:", validation.reasons);
   }
 
   const css = templateCss(template);
