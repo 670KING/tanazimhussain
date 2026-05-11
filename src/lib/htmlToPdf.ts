@@ -35,8 +35,7 @@ export async function htmlToPdfDownload(
     });
     // Try font readiness
     try {
-      // @ts-expect-error fonts API may not exist
-      await iframe.contentDocument?.fonts?.ready;
+      await (iframe.contentDocument as any)?.fonts?.ready;
     } catch { /* ignore */ }
 
     const target = doc.body;
