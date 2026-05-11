@@ -41,11 +41,14 @@ const TOOLS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tools`
 
 async function callTool<T = any>(payload: Record<string, unknown>): Promise<T | null> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const res = await fetch(TOOLS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Authorization': `Bearer ${token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       },
       body: JSON.stringify(payload),
     });
