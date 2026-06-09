@@ -208,10 +208,27 @@ async function runRouter(userMessage: string, hasImages: boolean) {
 
 type PdfTemplate = "academic" | "modern" | "minimal";
 
+// ---- Shared print/PDF stylesheet ------------------------------------------
+// Locks page geometry, side margins and page-break rules so the layout is
+// IDENTICAL between the in-app preview and the downloaded PDF. The body is
+// pinned to A4 width (794px @96dpi) and centred with generous side padding,
+// so text always sits in the middle with breathing room on the sides.
+const BASE_PRINT_CSS = `@page{size:A4;margin:0}
+*{box-sizing:border-box}
+html{margin:0;padding:0;background:#fff}
+body{width:794px;margin:0 auto;padding:28px 76px;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1,h2,h3{page-break-after:avoid;break-after:avoid}
+section{page-break-inside:avoid;break-inside:avoid}
+p{orphans:3;widows:3}
+li{page-break-inside:avoid;break-inside:avoid}
+.highlight,.diagram,pre,figure,table{page-break-inside:avoid;break-inside:avoid}
+img{max-width:100%;height:auto}
+`;
+
 function templateCss(template: PdfTemplate): string {
   if (template === "modern") {
-    return `@page{size:A4;margin:0.85in}
-      body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11.5pt;line-height:1.6;color:#1a1a1a;margin:0}
+    return `${BASE_PRINT_CSS}
+      body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11.5pt;line-height:1.6;color:#1a1a1a}
       h1{font-size:26pt;color:#0b5fff;margin:0 0 6px;letter-spacing:-.01em}
       .subtitle{color:#666;font-size:11pt;margin-bottom:22px}
       h2{font-size:16pt;color:#0b5fff;margin:22px 0 8px;border-bottom:2px solid #0b5fff;padding-bottom:4px;page-break-after:avoid}
@@ -225,8 +242,8 @@ function templateCss(template: PdfTemplate): string {
       .diagram pre{font-family:"Courier New",monospace;font-size:10pt;white-space:pre;margin:0;display:inline-block;text-align:left}`;
   }
   if (template === "minimal") {
-    return `@page{size:A4;margin:1in}
-      body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000;margin:0}
+    return `${BASE_PRINT_CSS}
+      body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:11pt;line-height:1.7;color:#000}
       h1{font-size:20pt;font-weight:300;letter-spacing:1px;text-align:center;margin:0 0 4px;text-transform:uppercase}
       .subtitle{text-align:center;font-size:10pt;color:#555;margin-bottom:30px;font-style:italic}
       h2{font-size:13pt;font-weight:600;margin:20px 0 6px;text-transform:uppercase;letter-spacing:.5px;page-break-after:avoid}
@@ -240,8 +257,8 @@ function templateCss(template: PdfTemplate): string {
       .diagram pre{font-family:"Courier New",monospace;font-size:10pt;white-space:pre;margin:0;display:inline-block;text-align:left}`;
   }
   // academic (default)
-  return `@page{size:A4;margin:1in}
-    body{font-family:"Times New Roman",Georgia,serif;font-size:12pt;line-height:1.6;color:#111;margin:0}
+  return `${BASE_PRINT_CSS}
+    body{font-family:"Times New Roman",Georgia,serif;font-size:12pt;line-height:1.6;color:#111}
     h1{text-align:center;font-size:24pt;margin:0 0 8px;page-break-after:avoid}
     .subtitle{text-align:center;font-size:11pt;color:#555;margin-bottom:22px;font-style:italic}
     h2{font-size:15pt;margin-top:22px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #ddd;page-break-after:avoid}
