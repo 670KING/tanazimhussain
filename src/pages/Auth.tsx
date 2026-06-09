@@ -47,7 +47,7 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm(false)) return;
+    if (!validateForm()) return;
     
     setIsLoading(true);
     const { error } = await signIn(email, password);
@@ -72,7 +72,7 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm(true)) return;
+    if (!validateForm()) return;
     
     setIsLoading(true);
     const { error } = await signUp(email, password, username);
