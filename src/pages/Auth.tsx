@@ -28,7 +28,7 @@ export default function Auth() {
     }
   }, [user, navigate]);
 
-  const validateForm = (isSignUp: boolean) => {
+  const validateForm = () => {
     try {
       emailSchema.parse(email);
       passwordSchema.parse(password);
@@ -37,7 +37,7 @@ export default function Auth() {
       if (error instanceof z.ZodError) {
         toast({
           title: 'Validation Error',
-          description: error.errors[0].message,
+          description: error.issues[0].message,
           variant: 'destructive',
         });
       }

@@ -21,7 +21,7 @@ export function preprocessLatex(content: string): string {
   };
   
   // Fix commands in display math blocks
-  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, inner) => {
     return '$$\n' + fixEscapedCommands(inner.trim()) + '\n$$';
   });
   
@@ -295,7 +295,7 @@ export function latexToHumanReadable(content: string): string {
     const clean = exp.replace(/[{}]/g, '');
     const sup: Record<string, string> = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','i':'ⁱ','+':'⁺','-':'⁻','T':'ᵀ' };
     if (clean.length <= 2 && /^[\d\+\-niT]+$/.test(clean)) {
-      return clean.split('').map(c => sup[c] || `^${c}`).join('');
+      return clean.split('').map((c: string) => sup[c] || `^${c}`).join('');
     }
     return `^(${clean})`;
   });
@@ -304,7 +304,7 @@ export function latexToHumanReadable(content: string): string {
     const clean = sub.replace(/[{}]/g, '');
     const subs: Record<string, string> = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','n':'ₙ','i':'ᵢ','j':'ⱼ','k':'ₖ','+':'₊','-':'₋' };
     if (clean.length <= 2 && /^[\d\+\-nijk]+$/.test(clean)) {
-      return clean.split('').map(c => subs[c] || `_${c}`).join('');
+      return clean.split('').map((c: string) => subs[c] || `_${c}`).join('');
     }
     return `_(${clean})`;
   });

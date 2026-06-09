@@ -83,7 +83,6 @@ const COMPILED_MACROS: Record<string, string> = {
   '\\SL': '\\operatorname{SL}',
   '\\SO': '\\operatorname{SO}',
   '\\SU': '\\operatorname{SU}',
-  '\\U': '\\operatorname{U}',
 
   // Calculus
   '\\Res': '\\operatorname{Res}',
