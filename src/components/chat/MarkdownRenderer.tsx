@@ -196,12 +196,11 @@ function CodeBlock({ children, language, isDark }: CodeBlockProps) {
     setCopied(true); toast.success('Code copied!'); setTimeout(() => setCopied(false), 2000);
   }, [children]);
   const downloadCode = useCallback(() => { const b = new Blob([children], { type: 'text/plain' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'code.' + (language || 'txt'); a.click(); URL.revokeObjectURL(u); toast.success('Code downloaded!'); }, [children, language]);
-  const lineCount = children.split('
-').length;
-  const displayContent = shouldTruncate ? children.split('
-').slice(0, 20).join('
-') + '
-// ...' : children;
+  const lineCount = children.split('\n').length;
+  const shouldTruncate = !expanded && lineCount > 30;
+  const displayContent = shouldTruncate
+    ? children.split('\n').slice(0, 30).join('\n') + '\n// ...'
+    : children;
   return (
     <div className="code-block-container relative group my-2 sm:my-4 rounded-lg overflow-hidden border border-border w-full max-w-full">
       <div className="sticky top-0 flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 bg-muted/80 border-b border-border z-10 flex-wrap gap-1 sm:flex-nowrap">
