@@ -1,0 +1,110 @@
+/* Math rendering fixes */
+.katex {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Code block fixes */
+.prose-ai pre {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+
+.prose-ai code {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* Responsive math display */
+@media (max-width: 640px) {
+  .katex-display {
+    font-size: 0.85em;
+    margin: 0.5em 0;
+  }
+
+  .katex {
+    font-size: 0.85em;
+  }
+
+  .prose-ai pre {
+    font-size: 0.75em;
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .katex-display {
+    font-size: 0.75em;
+  }
+
+  .katex {
+    font-size: 0.75em;
+  }
+
+  .prose-ai pre {
+    font-size: 0.65em;
+  }
+}
+
+/* Ensure proper table rendering */
+.prose-ai table {
+  overflow-x: auto;
+  display: block;
+  border-collapse: collapse;
+}
+
+.prose-ai thead,
+.prose-ai tbody,
+.prose-ai tr {
+  display: contents;
+}
+
+.prose-ai th,
+.prose-ai td {
+  padding: 0.5rem;
+  border: 1px solid hsl(var(--border));
+}
+
+/* Message bubble scroll fix */
+.message-content {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* Ensure math doesn't break layout */
+.prose-ai > * {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Fix for inline math */
+.katex-html {
+  overflow-x: auto;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Loading indicator smooth animation */
+@keyframes pulse-smooth {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.typing-indicator {
+  animation: pulse-smooth 1.5s ease-in-out infinite;
+}

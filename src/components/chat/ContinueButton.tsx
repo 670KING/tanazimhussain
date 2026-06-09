@@ -4,7 +4,7 @@ import { ChevronDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ContinueButtonProps {
-  onContinue: () => Promise<string | void>;
+  onContinue: () => Promise<string | undefined>;
   className?: string;
 }
 

@@ -56,15 +56,22 @@ export default function Dashboard() {
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
+  // Improved auto-scroll with proper timing
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messagesEndRef.current) {
+      // Use requestAnimationFrame for smooth scrolling
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
+    }
+  }, [messages, isLoading]);
 
   // Auto-switch to vision model when images are attached
   useEffect(() => {
@@ -295,10 +302,10 @@ export default function Dashboard() {
           </div>
         </CardHeader>
 
-        {/* Messages */}
-        <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
-          <ScrollArea className="h-full">
-            <div className="p-3 sm:p-4 space-y-4 sm:space-y-5">
+        {/* Messages - Fixed scroll container */}
+        <CardContent className="flex-1 p-0 overflow-hidden min-h-0 flex flex-col">
+          <ScrollArea ref={scrollAreaRef} className="flex-1 w-full">
+            <div className="p-3 sm:p-4 space-y-4 sm:space-y-5 w-full min-h-full">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center py-8 sm:py-12 text-center px-4">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-glow animate-float">

@@ -14,13 +14,13 @@ import { PDFPreviewDialog } from './PDFPreviewDialog';
 interface MessageBubbleProps {
   message: Message;
   onRegenerate?: () => void;
-  onContinue?: () => Promise<string | void>;
+  onContinue?: () => Promise<string | undefined>;
   isStreaming?: boolean;
   isLastAssistant?: boolean;
 }
 
 // Image component with robust error handling and retry
-function MessageImage({ src, alt, index }: { src: string; alt: string; index: number }) {
+function MessageImage({ src, alt, _index }: { src: string; alt: string; index: number }) {
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -157,11 +157,11 @@ export function MessageBubble({
 
         {/* Message content */}
         {isUser ? (
-          <div className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed overflow-hidden">
+          <div className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed overflow-hidden max-w-full">
             {message.content}
           </div>
         ) : (
-          <div className="relative overflow-hidden">
+          <div className="relative overflow-x-auto max-w-full message-content">
             {message.content ? (
               <>
                 <MarkdownRenderer 

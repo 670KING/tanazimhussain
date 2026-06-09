@@ -1,0 +1,201 @@
+/**
+ * ============================================================================
+ * TanoAI — CSS Performance Rules for Layout Isolation
+ * ============================================================================
+ * 
+ * These styles prevent DOM reflow chain reactions when rendering
+ * heavy mathematical content. Each rule targets a specific performance
+ * bottleneck identified through Chrome DevTools profiling.
+ * 
+ * USAGE: Import this file in your main CSS or include as a <style> block.
+ */
+
+/* ─── 1. Message Block Containment ────────────────────────────────────────── */
+/* Each message bubble is an isolated rendering context. Reflow inside one
+   message NEVER triggers reflow in siblings. This is the single most
+   impactful CSS rule for chat UI performance. */
+
+.message-block {
+  contain: layout style paint;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
+
+/* When a message is actively streaming, disable content-visibility
+   to ensure smooth text insertion. */
+.message-block.streaming {
+  content-visibility: visible;
+}
+
+/* ─── 2. Math Block Isolation ─────────────────────────────────────────────── */
+/* KaTeX output is complex DOM. Isolate it to prevent reflow cascades. */
+
+.katex-container {
+  contain: layout style;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Display math ($$...$$) gets its own rendering layer */
+.katex-display {
+  contain: layout style paint;
+  overflow-x: auto;
+  overflow-change: touch;
+  max-width: 100%;
+  /* Prevent layout shift by reserving space */
+  min-height: 2em;
+  margin: 0.75em 0;
+}
+
+/* Inline math should never cause line-height changes */
+.katex-inline {
+  contain: style;
+  display: inline;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+/* ─── 3. Code Block Containment ───────────────────────────────────────────── */
+/* SyntaxHighlighter generates deep DOM trees. Contain them. */
+
+.code-block-container {
+  contain: layout style paint;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.code-block-container .syntaxhighlighter,
+.code-block-container pre {
+  contain: layout style;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 60vh;
+  -webkit-overflow-scrolling: touch;
+  /* Prevent scrollbar from causing layout shift */
+  scrollbar-gutter: stable;
+}
+
+/* ─── 4. Chat Scroll Area Optimization ────────────────────────────────────── */
+/* The scroll container should use GPU compositing for smooth scrolling. */
+
+.chat-scroll-area {
+  contain: strict;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* GPU-accelerated scrolling */
+  will-change: scroll-position;
+  /* Prevent scroll anchoring issues with dynamic content */
+  overflow-anchor: auto;
+}
+
+/* ─── 5. Streaming Content Optimization ──────────────────────────────────── */
+/* During streaming, we want minimal repaints. */
+
+.streaming-content {
+  /* Use content-visibility to skip rendering off-screen content */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100px;
+  /* Prevent layout shifts from incomplete math */
+  min-height: 1.5em;
+}
+
+/* ─── 6. Responsive Math Scaling ──────────────────────────────────────────── */
+/* Math should scale down on small screens without causing reflow. */
+
+@media (max-width: 640px) {
+  .katex-display {
+    font-size: 0.85em;
+    margin: 0.5em 0;
+    /* Prevent horizontal scroll from causing vertical reflow */
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: calc(100vw - 2rem);
+  }
+
+  .katex {
+    font-size: 0.85em;
+    /* Prevent math from breaking layout */
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: inline-block;
+  }
+
+  .code-block-container pre {
+    font-size: 0.75em;
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .katex-display {
+    font-size: 0.75em;
+  }
+
+  .katex {
+    font-size: 0.75em;
+  }
+}
+
+/* ─── 7. GPU Layer Promotion for Animations ───────────────────────────────── */
+/* Promote animated elements to their own compositor layer. */
+
+.typing-indicator,
+.streaming-cursor {
+  will-change: opacity, transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ─── 8. Reduce Motion for Accessibility ──────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-indicator,
+  .streaming-cursor {
+    animation: none !important;
+    will-change: auto;
+  }
+
+  .chat-scroll-area {
+    scroll-behavior: auto;
+  }
+}
+
+/* ─── 9. Print Optimization ───────────────────────────────────────────────── */
+
+@media print {
+  .message-block {
+    content-visibility: visible;
+    break-inside: avoid;
+  }
+
+  .katex-container,
+  .katex-display {
+    overflow: visible;
+    max-width: 100%;
+  }
+}
+
+/* ─── 10. Skeleton/Placeholder Styles ─────────────────────────────────────── */
+/* Show placeholders while math is being parsed to prevent layout shift. */
+
+.math-placeholder {
+  display: inline-block;
+  min-width: 2em;
+  min-height: 1.2em;
+  background: linear-gradient(90deg, var(--muted) 25%, var(--muted-foreground) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: math-skeleton 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+@keyframes math-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

@@ -23,7 +23,6 @@ import {
   BarChart3,
   LogOut,
   GraduationCap,
-  User,
   Sun,
   Moon,
   FileUser,

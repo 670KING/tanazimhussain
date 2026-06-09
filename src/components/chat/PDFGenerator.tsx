@@ -18,7 +18,6 @@ import jsPDF from 'jspdf';
 
 interface PDFGeneratorProps {
   onGenerateWithAI: (prompt: string, options: PDFOptions) => Promise<string>;
-  isLoading?: boolean;
 }
 
 export interface PDFOptions {
@@ -28,7 +27,7 @@ export interface PDFOptions {
   length: 'short' | 'medium' | 'long';
 }
 
-export function PDFGenerator({ onGenerateWithAI, isLoading }: PDFGeneratorProps) {
+export function PDFGenerator({ onGenerateWithAI }: PDFGeneratorProps) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [options, setOptions] = useState<PDFOptions>({
@@ -51,7 +50,7 @@ export function PDFGenerator({ onGenerateWithAI, isLoading }: PDFGeneratorProps)
       const content = await onGenerateWithAI(prompt, options);
       setGeneratedContent(content);
       toast.success('Content generated! You can now download the PDF.');
-    } catch (error) {
+    } catch (_error: unknown) {
       toast.error('Failed to generate content');
     } finally {
       setIsGenerating(false);
