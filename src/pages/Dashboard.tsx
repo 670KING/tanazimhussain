@@ -58,19 +58,42 @@ export default function Dashboard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Smart autoscroll: only stick to bottom when the user is already near it.
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Improved auto-scroll with proper timing
+  // Track whether the user has scrolled away from the bottom of the transcript.
   useEffect(() => {
-    if (messagesEndRef.current) {
-      // Use requestAnimationFrame for smooth scrolling
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      });
-    }
+    const viewport = scrollAreaRef.current?.querySelector<HTMLElement>(
+      '[data-radix-scroll-area-viewport]'
+    );
+    if (!viewport) return;
+    const onScroll = () => {
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+      // Within 150px of the bottom = "stuck" to bottom.
+      stickToBottomRef.current = distanceFromBottom < 150;
+    };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
+    return () => viewport.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Auto-scroll on new content, but ONLY if the user hasn't scrolled up to read.
+  useEffect(() => {
+    if (!stickToBottomRef.current) return;
+    const viewport = scrollAreaRef.current?.querySelector<HTMLElement>(
+      '[data-radix-scroll-area-viewport]'
+    );
+    requestAnimationFrame(() => {
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }
+    });
   }, [messages, isLoading]);
 
   // Auto-switch to vision model when images are attached

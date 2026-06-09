@@ -298,6 +298,22 @@ export function useChat() {
 
       setMessages(prev => [...prev, assistantMessage]);
 
+      // ---- Token batching: flush to UI at most every ~80ms instead of every token.
+      // This prevents the main thread from locking up (markdown/syntax re-parse storm).
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+      const flushNow = () => {
+        flushTimer = null;
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantMessage.id ? { ...m, content: assistantContent } : m
+          )
+        );
+      };
+      const scheduleFlush = () => {
+        if (flushTimer !== null) return;
+        flushTimer = setTimeout(flushNow, 80);
+      };
+
       while (reader) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -321,13 +337,7 @@ export function useChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === assistantMessage.id
-                    ? { ...m, content: assistantContent }
-                    : m
-                )
-              );
+              scheduleFlush();
             }
           } catch {
             buffer = line + '\n' + buffer;
@@ -350,17 +360,15 @@ export function useChat() {
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               assistantContent += content;
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === assistantMessage.id
-                    ? { ...m, content: assistantContent }
-                    : m
-                )
-              );
+              scheduleFlush();
             }
           } catch { /* ignore */ }
         }
       }
+
+      // Final flush — guarantee the complete response is rendered.
+      if (flushTimer !== null) clearTimeout(flushTimer);
+      flushNow();
 
       // Save assistant message
       if (assistantContent) {
