@@ -71,7 +71,7 @@ function extractAndReplaceMath(content: string): {
   return { segments, mathPlaceholders };
 }
 
-export function MarkdownRenderer({ content, className = '', isStreaming = false, messageId = '' }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className = '', isStreaming = false }: MarkdownRendererProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const containerRef = useRef<HTMLDivElement>(null);
