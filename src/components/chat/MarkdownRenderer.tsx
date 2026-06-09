@@ -142,7 +142,7 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false,
 
   return (
     <div ref={containerRef} className={'prose-ai break-words overflow-hidden min-w-0 max-w-full message-block ' + (isStreaming ? 'streaming ' : '') + mathHeavyClass + ' ' + className} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', WebkitTextSizeAdjust: '100%', textSizeAdjust: '100%' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={{
         h1: ({ children }) => <h1 className="text-lg sm:text-xl md:text-2xl font-bold mt-4 sm:mt-6 mb-2 sm:mb-4 text-foreground border-b border-border pb-2 break-words">{children}</h1>,
         h2: ({ children }) => <h2 className="text-base sm:text-lg md:text-xl font-semibold mt-3 sm:mt-5 mb-2 sm:mb-3 text-foreground break-words">{children}</h2>,
         h3: ({ children }) => <h3 className="text-sm sm:text-base md:text-lg font-semibold mt-2 sm:mt-4 mb-1 sm:mb-2 text-foreground break-words">{children}</h3>,
