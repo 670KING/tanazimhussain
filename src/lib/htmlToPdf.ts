@@ -58,10 +58,15 @@ export async function renderHtmlToPdf(
       logging: false,
     });
 
-    // ----- Compute "safe" page break offsets in canvas pixels -----
-    // A4 aspect ratio: 210x297mm → use that ratio against the canvas width.
-    const A4_RATIO = 297 / 210;
-    const pagePxHeight = Math.floor(canvas.width * A4_RATIO);
+    // ----- Page geometry (locked, identical to preview) -----
+    const pageMmW = 210;
+    const pageMmH = 297;
+    // Vertical margin applied to EVERY page (side margins are already baked
+    // into the document body padding, so they live inside the canvas).
+    const vMarginMm = 12;
+    const pxPerMm = canvas.width / pageMmW;
+    // Usable (printable) height per page, in canvas pixels.
+    const pagePxHeight = Math.floor((pageMmH - vMarginMm * 2) * pxPerMm);
 
     // Collect bottom-edges of every block element relative to body, in
     // canvas pixels (multiplied by scale).
@@ -101,8 +106,6 @@ export async function renderHtmlToPdf(
 
     // ----- Render each slice onto its own A4 page -----
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageMmW = pdf.internal.pageSize.getWidth();
-    const pageMmH = pdf.internal.pageSize.getHeight();
 
     const tmp = document.createElement('canvas');
     const ctx = tmp.getContext('2d')!;
@@ -118,11 +121,22 @@ export async function renderHtmlToPdf(
         0, 0, canvas.width, slice.h,
       );
       const imgData = tmp.toDataURL('image/jpeg', 0.92);
-      const sliceMmH = (slice.h / canvas.width) * pageMmW;
+      const sliceMmH = slice.h / pxPerMm;
+      const maxContentMmH = pageMmH - vMarginMm * 2;
       if (i > 0) pdf.addPage();
-      // Top-align — leaves blank space at the bottom of short pages
-      // (better than scaling text up and breaking layout).
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageMmW, Math.min(sliceMmH, pageMmH), undefined, 'FAST');
+      // Full canvas width maps to the full page width (side margins are baked
+      // into the canvas). Offset vertically by the locked top margin so every
+      // page keeps consistent top/bottom breathing room.
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        0,
+        vMarginMm,
+        pageMmW,
+        Math.min(sliceMmH, maxContentMmH),
+        undefined,
+        'FAST',
+      );
     });
 
     return pdf;
