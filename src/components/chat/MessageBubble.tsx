@@ -20,7 +20,7 @@ interface MessageBubbleProps {
 }
 
 // Image component with robust error handling and retry
-function MessageImage({ src, alt, _index }: { src: string; alt: string; index: number }) {
+function MessageImage({ src, alt }: { src: string; alt: string; index: number }) {
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
