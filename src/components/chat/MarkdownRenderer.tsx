@@ -12,6 +12,7 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from 'next-themes';
@@ -45,7 +46,8 @@ function extractAndReplaceMath(content: string): {
 } {
   const segments: Array<{ type: 'text' | 'math'; content: string; displayMode?: boolean }> = [];
   const mathPlaceholders: MathPlaceholder[] = [];
-  const mathRegex = /\$\$\$|\$/g;
+  // Match display math ($$...$$) or inline math ($...$)
+  const mathRegex = /\$\$([\s\S]+?)\$\$|\$([^\n$]+?)\$/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let mathIndex = 0;
@@ -54,7 +56,8 @@ function extractAndReplaceMath(content: string): {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', content: content.slice(lastIndex, match.index) });
     }
-    const latex = isDisplay ? match[1] : match[2];
+    const isDisplay = match[1] !== undefined;
+    const latex = (isDisplay ? match[1] : match[2]) ?? '';
     const placeholderId = '__MATH_' + mathIndex + '__';
     mathPlaceholders.push({ id: placeholderId, latex: latex.trim(), displayMode: isDisplay, rendered: false, html: '' });
     segments.push({ type: 'math', content: placeholderId, displayMode: isDisplay });
@@ -78,11 +81,7 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false,
   const [renderVersion, setRenderVersion] = useState(0);
 
   const processedContent = useMemo(() => {
-    let processed = preprocessLatex(content);
-    processed = processed.replace(/\$\$/g, '
-2489
-');
-    return processed;
+    return preprocessLatex(content);
   }, [content]);
 
   const { segments, mathPlaceholders } = useMemo(() => extractAndReplaceMath(processedContent), [processedContent]);
@@ -93,15 +92,11 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false,
         const block = mathBlocks.get(segment.content);
         if (block?.rendered) {
           return segment.displayMode
-            ? '
-<div class="katex-container katex-display">' + block.html + '</div>
-'
+            ? '\n\n<div class="katex-container katex-display">' + block.html + '</div>\n\n'
             : '<span class="katex-container katex-inline">' + block.html + '</span>';
         }
         return segment.displayMode
-          ? '
-<div class="math-placeholder" style="width:100%;height:3em;"></div>
-'
+          ? '\n\n<div class="math-placeholder" style="width:100%;height:3em;"></div>\n\n'
           : '<span class="math-placeholder" style="width:3em;height:1.2em;"></span>';
       }
       return segment.content;
@@ -118,9 +113,8 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false,
       let hasChanges = false;
       for (const placeholder of mathPlaceholders) {
         if (incomplete && placeholder.id === mathPlaceholders[mathPlaceholders.length - 1]?.id) {
-            newBlocks.set(placeholder.id, { ...placeholder, rendered: false, html: '' });
-            continue;
-          }
+          newBlocks.set(placeholder.id, { ...placeholder, rendered: false, html: '' });
+          continue;
         }
         const cacheKey = (placeholder.displayMode ? 'D' : 'I') + ':' + placeholder.latex;
         const cached = mathCacheRef.current.get(cacheKey);
