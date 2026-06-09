@@ -162,8 +162,20 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false,
         hr: () => <hr className="my-4 sm:my-6 border-border" />,
         code: ({ className: codeClassName, children }) => {
           const match = /language-(\w+)/.exec(codeClassName || '');
-          return <CodeBlock language={match[1]} isDark={isDark}>{String(children).replace(/
-$/, '')}</CodeBlock>;
+          const text = String(children);
+          const isInline = !match && !text.includes('\n');
+          if (isInline) {
+            return (
+              <code className="bg-muted px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-sm font-mono text-primary break-words">
+                {children}
+              </code>
+            );
+          }
+          return (
+            <CodeBlock language={match ? match[1] : ''} isDark={isDark}>
+              {text.replace(/\n$/, '')}
+            </CodeBlock>
+          );
         },
         pre: ({ children }) => <>{children}</>,
         img: ({ src, alt }) => <img src={src} alt={alt || 'Image'} className="max-w-full h-auto rounded-lg my-2 sm:my-4 border border-border" loading="lazy" />,
