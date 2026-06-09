@@ -206,6 +206,11 @@ function CodeBlock({ children, language, isDark }: CodeBlockProps) {
       <div className="sticky top-0 flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 bg-muted/80 border-b border-border z-10 flex-wrap gap-1 sm:flex-nowrap">
         <span className="text-[10px] sm:text-xs font-mono text-muted-foreground uppercase truncate flex-1 min-w-0">{language || 'code'}</span>
         <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+          {lineCount > 30 && (
+            <Button size="icon" variant="ghost" className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0" onClick={() => setExpanded(e => !e)} title={expanded ? 'Collapse' : 'Expand'}>
+              {expanded ? <Minimize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+            </Button>
+          )}
           <Button size="icon" variant="ghost" className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0" onClick={downloadCode} title="Download"><Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></Button>
           <Button size="icon" variant="ghost" className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0" onClick={copyCode} title="Copy">{copied ? <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" /> : <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}</Button>
         </div>
