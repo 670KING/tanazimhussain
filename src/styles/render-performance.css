@@ -16,7 +16,7 @@
    impactful CSS rule for chat UI performance. */
 
 .message-block {
-  contain: layout style paint;
+  contain: content;
   content-visibility: auto;
   contain-intrinsic-size: auto 200px;
 }
@@ -40,7 +40,7 @@
 
 /* Display math ($$...$$) gets its own rendering layer */
 .katex-display {
-  contain: layout style paint;
+  contain: content;
   overflow-x: auto;
   overflow-change: touch;
   max-width: 100%;
@@ -61,7 +61,7 @@
 /* SyntaxHighlighter generates deep DOM trees. Contain them. */
 
 .code-block-container {
-  contain: layout style paint;
+  contain: content;
   content-visibility: auto;
   contain-intrinsic-size: auto 300px;
   max-width: 100%;
@@ -198,4 +198,25 @@
 @keyframes math-skeleton {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* ─── 11. Table Squeezing Fix ─────────────────────────────────────────────── */
+/* Prevents AI tables from being squished, giving them overflow-x scroll. */
+
+.table-layout-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 1rem 0;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  contain: content;
+}
+
+.table-layout-wrapper table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
 }

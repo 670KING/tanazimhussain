@@ -11,6 +11,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { Loader2, FileQuestion, CheckCircle, XCircle, Trophy, Target, Clock, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useTheme } from 'next-themes';
+import { CodeBlock } from '@/components/chat/MarkdownRenderer';
+import { sanitizeLLMContent } from '@/lib/math-utils';
 
 interface QuizQuestion {
   question: string;
@@ -22,6 +27,8 @@ interface QuizQuestion {
 
 export default function QuizGenerator() {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState('medium');
   const [numQuestions, setNumQuestions] = useState('5');
@@ -284,14 +291,41 @@ Make questions educational and appropriate for students. Include detailed explan
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <CardTitle className="text-base font-medium flex items-start gap-3">
-                    <span className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
+                  <CardTitle className="text-base font-medium flex items-start gap-3 w-full min-w-0">
+                    <span className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm font-bold mt-0.5">
                       {i + 1}
                     </span>
-                    <span>{q.question}</span>
+                    <div className="flex-1 min-w-0 space-y-3">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => <p className="leading-relaxed break-words text-sm font-medium">{children}</p>,
+                          code: ({ className: codeClassName, children }) => {
+                            const match = /language-(\w+)/.exec(codeClassName || '');
+                            const lang = match ? match[1] : '';
+                            const text = String(children);
+                            const isInline = !match && !text.includes('\n');
+                            if (isInline) {
+                              return (
+                                <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-primary break-words">
+                                  {children}
+                                </code>
+                              );
+                            }
+                            return (
+                              <CodeBlock language={lang} isDark={isDark}>
+                                {text.replace(/\n$/, '')}
+                              </CodeBlock>
+                            );
+                          }
+                        }}
+                      >
+                        {sanitizeLLMContent(q.question)}
+                      </ReactMarkdown>
+                    </div>
                   </CardTitle>
                   {submitted && (
-                    <div className="shrink-0">
+                    <div className="shrink-0 ml-2">
                       {answers[i] === q.correct_answer ? (
                         <CheckCircle className="w-6 h-6 text-green-500" />
                       ) : (
@@ -302,7 +336,7 @@ Make questions educational and appropriate for students. Include detailed explan
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                   {q.options?.map((opt: string, optIndex: number) => {
                     const isSelected = answers[i] === opt;
                     const isCorrect = opt === q.correct_answer;
@@ -314,7 +348,7 @@ Make questions educational and appropriate for students. Include detailed explan
                         key={optIndex}
                         variant="outline"
                         className={cn(
-                          'h-auto py-3 px-4 justify-start text-left transition-all',
+                          'w-full min-w-0 h-auto py-3 px-4 flex items-start justify-start text-left whitespace-normal break-words transition-all gap-0',
                           isSelected && !submitted && 'border-primary bg-primary/10',
                           showCorrect && 'border-green-500 bg-green-500/10 text-green-700 dark:text-green-400',
                           showWrong && 'border-red-500 bg-red-500/10 text-red-700 dark:text-red-400'
@@ -322,21 +356,48 @@ Make questions educational and appropriate for students. Include detailed explan
                         onClick={() => !submitted && setAnswers({ ...answers, [i]: opt })}
                         disabled={submitted}
                       >
-                        <span className="w-6 h-6 rounded-md bg-muted flex items-center justify-center text-xs font-medium mr-3 shrink-0">
+                        <span className="w-6 h-6 rounded-md bg-muted flex items-center justify-center text-xs font-medium mr-3 shrink-0 mt-0.5">
                           {String.fromCharCode(65 + optIndex)}
                         </span>
-                        <span className="flex-1">{opt}</span>
-                        {showCorrect && <CheckCircle className="w-4 h-4 text-green-500 shrink-0 ml-2" />}
-                        {showWrong && <XCircle className="w-4 h-4 text-red-500 shrink-0 ml-2" />}
+                        <span className="flex-1 min-w-0 break-words whitespace-normal">{opt}</span>
+                        {showCorrect && <CheckCircle className="w-4 h-4 text-green-500 shrink-0 ml-2 mt-1" />}
+                        {showWrong && <XCircle className="w-4 h-4 text-red-500 shrink-0 ml-2 mt-1" />}
                       </Button>
                     );
                   })}
                 </div>
                 
                 {submitted && q.explanation && (
-                  <div className="mt-4 p-4 rounded-lg bg-muted/50 border border-border/50">
-                    <p className="text-sm font-medium mb-1">Explanation:</p>
-                    <p className="text-sm text-muted-foreground">{q.explanation}</p>
+                  <div className="mt-4 p-4 rounded-lg bg-muted/50 border border-border/50 space-y-2">
+                    <p className="text-sm font-medium">Explanation:</p>
+                    <div className="text-sm text-muted-foreground prose-ai">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => <p className="leading-relaxed break-words text-sm">{children}</p>,
+                          code: ({ className: codeClassName, children }) => {
+                            const match = /language-(\w+)/.exec(codeClassName || '');
+                            const lang = match ? match[1] : '';
+                            const text = String(children);
+                            const isInline = !match && !text.includes('\n');
+                            if (isInline) {
+                              return (
+                                <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono text-primary break-words">
+                                  {children}
+                                </code>
+                              );
+                            }
+                            return (
+                              <CodeBlock language={lang} isDark={isDark}>
+                                {text.replace(/\n$/, '')}
+                              </CodeBlock>
+                            );
+                          }
+                        }}
+                      >
+                        {sanitizeLLMContent(q.explanation)}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </CardContent>

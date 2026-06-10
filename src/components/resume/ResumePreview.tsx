@@ -10,7 +10,7 @@ interface ResumePreviewProps {
   config: ResumeConfig;
 }
 
-const templates: Record<ResumeTemplate, React.ComponentType<{ data: ResumeData; config: ResumeConfig }>> = {
+export const templates: Record<ResumeTemplate, React.ComponentType<{ data: ResumeData; config: ResumeConfig }>> = {
   modern: ModernTemplate,
   academic: AcademicTemplate,
   creative: CreativeTemplate,

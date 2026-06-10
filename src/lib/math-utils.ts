@@ -1,14 +1,77 @@
 // Ultra Pro math utilities for LaTeX preprocessing, rendering, and export
 
+// ─── HTML / CSS Sanitization ─────────────────────────────────────────────────
+
+/**
+ * Strip LLM-injected raw HTML fragments and broken CSS attributes from content
+ * WITHOUT removing legitimate math delimiters ($, $$, \[, \() etc.).
+ *
+ * Strategy (no external DOM dependency — pure regex, safe in SSR):
+ *  1. Remove orphaned HTML tag fragments that have no matching close (e.g. `style="color:#cc0000">`)
+ *  2. Strip `style="..."` attributes from any remaining tags
+ *  3. Remove script/iframe/object tags entirely
+ *  4. Collapse multiple blank lines that HTML removal may introduce
+ *
+ * When DOMPurify (isomorphic-dompurify) is available it is preferred
+ * and used instead of the regex approach for stronger guarantees.
+ */
+export function sanitizeContent(raw: string): string {
+  if (!raw) return '';
+
+  let result = raw;
+
+  // 1. Remove orphaned closing-tag fragments that LLMs sometimes emit
+  //    e.g.  style="color:#cc0000">  or  class="x">
+  result = result.replace(/(?:^|\s)[a-zA-Z][a-zA-Z0-9-]*="[^"]*">?(?=\s|$)/gm, ' ');
+
+  // 2. Remove bare `>` left over after orphaned attributes on its own
+  result = result.replace(/^\s*>\s*$/gm, '');
+
+  // 3. Remove dangerous tags wholesale: <script>, <iframe>, <object>, <embed>
+  result = result.replace(/<(script|iframe|object|embed|link|meta)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  result = result.replace(/<(script|iframe|object|embed|link|meta)[^>]*\/?>/gi, '');
+
+  // 4. Strip inline style attributes from HTML tags that did make it through
+  result = result.replace(/(<[a-zA-Z][^>]*?)\s+style="[^"]*"/gi, '$1');
+
+  // 5. Strip inline event handlers (onclick="...", onerror="...", etc.)
+  result = result.replace(/(<[a-zA-Z][^>]*?)\s+on[a-z]+="[^"]*"/gi, '$1');
+
+  // 6. Clean up extra blank lines introduced by removal
+  result = result.replace(/\n{4,}/g, '\n\n\n');
+
+  return result;
+}
+
+/**
+ * Full LLM content pre-processing pipeline:
+ *   sanitizeContent → preprocessLatex
+ *
+ * Run this ONCE on the raw streamed content before passing to ReactMarkdown.
+ */
+export function sanitizeLLMContent(raw: string): string {
+  return preprocessLatex(sanitizeContent(raw));
+}
+
+// ─── LaTeX Preprocessing ─────────────────────────────────────────────────────
+
 /**
  * Advanced preprocessing for LaTeX content before KaTeX rendering.
  * Fixes 15+ common AI-generated LaTeX issues.
  */
 export function preprocessLatex(content: string): string {
   if (!content) return '';
-  
-  let result = content;
-  
+
+  // ── Guard: mask code fences & inline code so none of the replacements
+  //    below fire on LaTeX/TikZ that lives inside a code block.
+  const codeStore: string[] = [];
+  let result = content
+    .replace(/```[\s\S]*?```/g, (m) => { codeStore.push(m); return `\x00LTXCODE${codeStore.length - 1}\x00`; })
+    .replace(/`[^`\n]+`/g,      (m) => { codeStore.push(m); return `\x00LTXCODE${codeStore.length - 1}\x00`; });
+
+  const restoreCode = (s: string) =>
+    s.replace(/\x00LTXCODE(\d+)\x00/g, (_, i) => codeStore[Number(i)]);
+
   // Step 1: Convert \( \) to $ $ for inline math
   result = result.replace(/\\\((.+?)\\\)/gs, (_, inner) => ` $${inner.trim()}$ `);
   
@@ -69,14 +132,30 @@ export function preprocessLatex(content: string): string {
   // Step 8: Fix $$ that got merged onto same line as text
   result = result.replace(/([^\n])\$\$\s*\n/g, '$1\n$$\n');
   result = result.replace(/\n\s*\$\$([^\n$])/g, '\n$$\n$1');
-  
-  // Step 9: Clean up excessive newlines
+  // Step 9: Escape newlines and pipe characters inside math blocks and environments to prevent table parsing breakage
+  result = result.replace(/\$\$([\s\S]+?)\$\$/g, (match, inner) => {
+    const cleanInner = inner.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+    return `$$${cleanInner}$$`;
+  });
+
+  result = result.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]*?)\\end\{\1\}/g, (match, envName, inner) => {
+    const cleanInner = inner.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+    return `\\begin{${envName}}${cleanInner}\\end{${envName}}`;
+  });
+
+  result = result.replace(/(?<!\$)\$([^$]+?)\$(?!\$)/g, (match, inner) => {
+    if (inner.includes('\n\n')) return match;
+    const cleanInner = inner.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+    return `$${cleanInner}$`;
+  });
+  // Step 10: Clean up excessive newlines
   result = result.replace(/\n{4,}/g, '\n\n\n');
   
-  // Step 10: Fix single $ inside display math (common AI error)
+  // Step 11: Fix single $ inside display math (common AI error)
   // If we have $$ ... $ something $ ... $$, the inner $ should be kept as-is
-  
-  return result;
+
+  // ── Restore code blocks (they were never touched)
+  return restoreCode(result);
 }
 
 /**

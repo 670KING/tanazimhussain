@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ResumeEditor } from './ResumeEditor';
-import { ResumePreview } from './ResumePreview';
+import { ResumePreview, templates } from './ResumePreview';
+import { ModernTemplate } from './templates/ModernTemplate';
 import { 
   ResumeData, ResumeConfig, ResumeTemplate,
   DEFAULT_RESUME_DATA, DEFAULT_RESUME_CONFIG, generateId
@@ -74,6 +75,7 @@ export function ResumeBuilder() {
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [resumeTitle, setResumeTitle] = useState('My Resume');
   const previewRef = useRef<HTMLDivElement>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const handleAIEnhance = useCallback(async (field: string, content: string): Promise<string> => {
     setIsEnhancing(true);
@@ -325,8 +327,8 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
   }, [aiPrompt, data.personalInfo.photo]);
 
   const exportToPDF = useCallback(async () => {
-    if (!previewRef.current) {
-      toast.error('Preview not ready');
+    if (!printRef.current) {
+      toast.error('Export target not ready');
       return;
     }
 
@@ -334,15 +336,11 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
     toast.info('Generating PDF...', { duration: 2000 });
 
     try {
-      // Find the actual resume content
-      const resumeContent = previewRef.current.querySelector('.bg-white') as HTMLElement;
-      if (!resumeContent) {
-        throw new Error('Resume content not found');
-      }
+      const resumeContent = printRef.current;
 
-      // Create canvas from the resume content with higher quality
+      // Create canvas from the off-screen resume content with high quality
       const canvas = await html2canvas(resumeContent, {
-        scale: 3, // Higher scale for better quality
+        scale: 2, // Scale 2 is highly detailed and keeps PDF size reasonable
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
@@ -365,10 +363,8 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      // Add image to PDF with high quality
       const imgData = canvas.toDataURL('image/png', 1.0);
       
-      // Handle multi-page if content is taller than A4
       let heightLeft = imgHeight;
       let position = 0;
 
@@ -395,7 +391,7 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
     } finally {
       setIsExporting(false);
     }
-  }, [data.personalInfo.fullName]);
+  }, [data.personalInfo.fullName, config.template, data]);
 
   const handleSave = useCallback(async () => {
     const title = data.personalInfo.fullName 
@@ -653,6 +649,16 @@ Make the resume ATS-friendly with strong action verbs and quantified achievement
             activeView === 'preview' && "block"
           )}>
             <ResumePreview ref={previewRef} data={data} config={config} />
+          </div>
+        </div>
+
+        {/* Hidden off-screen print target */}
+        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '210mm', pointerEvents: 'none' }}>
+          <div ref={printRef} className="bg-white">
+            {(() => {
+              const Template = templates[config.template] || ModernTemplate;
+              return <Template data={data} config={config} />;
+            })()}
           </div>
         </div>
       </div>

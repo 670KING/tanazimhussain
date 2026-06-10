@@ -12,17 +12,21 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Download, Maximize2, Minimize2 } from 'lucide-react';
+import { Copy, Check, Download, Maximize2, Minimize2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { preprocessLatex } from '@/lib/math-utils';
+import { sanitizeLLMContent } from '@/lib/math-utils';
 import { renderKatex, isMathHeavy } from '@/lib/katex-fast';
 import { hasIncompleteMath } from '@/lib/render-scheduler';
+import { ChartRenderer } from './ChartRenderer';
+import { renderCache } from '@/lib/render-cache';
 import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
@@ -40,10 +44,38 @@ interface MathPlaceholder {
   html: string;
 }
 
+/**
+ * Tombstone map: replace code blocks with inert placeholders so math regexes
+ * never see dollar signs / backslash sequences that live inside code fences.
+ * Returns the masked content and a restore function.
+ */
+function maskCodeBlocks(content: string): { masked: string; restore: (s: string) => string } {
+  const store: string[] = [];
+
+  // Mask fenced code blocks first (``` ... ```), then inline code (`...`)
+  let masked = content
+    .replace(/```[\s\S]*?```/g, (match) => {
+      store.push(match);
+      return `\x00CODE${store.length - 1}\x00`;
+    })
+    .replace(/`[^`\n]+`/g, (match) => {
+      store.push(match);
+      return `\x00CODE${store.length - 1}\x00`;
+    });
+
+  const restore = (s: string) =>
+    s.replace(/\x00CODE(\d+)\x00/g, (_, idx) => store[Number(idx)]);
+
+  return { masked, restore };
+}
+
 function extractAndReplaceMath(content: string): {
   segments: Array<{ type: 'text' | 'math'; content: string; displayMode?: boolean }>;
   mathPlaceholders: MathPlaceholder[];
 } {
+  // --- Step 1: hide code blocks so $ inside them are invisible to the math regex
+  const { masked, restore } = maskCodeBlocks(content);
+
   const segments: Array<{ type: 'text' | 'math'; content: string; displayMode?: boolean }> = [];
   const mathPlaceholders: MathPlaceholder[] = [];
   // Match display math ($$...$$) or inline math ($...$)
@@ -52,9 +84,10 @@ function extractAndReplaceMath(content: string): {
   let match: RegExpExecArray | null;
   let mathIndex = 0;
 
-  while ((match = mathRegex.exec(content)) !== null) {
+  while ((match = mathRegex.exec(masked)) !== null) {
     if (match.index > lastIndex) {
-      segments.push({ type: 'text', content: content.slice(lastIndex, match.index) });
+      // Restore any code-block placeholders inside text segments
+      segments.push({ type: 'text', content: restore(masked.slice(lastIndex, match.index)) });
     }
     const isDisplay = match[1] !== undefined;
     const latex = (isDisplay ? match[1] : match[2]) ?? '';
@@ -65,13 +98,30 @@ function extractAndReplaceMath(content: string): {
     lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < content.length) {
-    segments.push({ type: 'text', content: content.slice(lastIndex) });
+  if (lastIndex < masked.length) {
+    segments.push({ type: 'text', content: restore(masked.slice(lastIndex)) });
   }
   return { segments, mathPlaceholders };
 }
 
-export function MarkdownRenderer({ content, className = '', isStreaming = false }: MarkdownRendererProps) {
+export function MarkdownRenderer(props: MarkdownRendererProps) {
+  const { messageId, isStreaming, className = '' } = props;
+
+  if (messageId && !isStreaming && renderCache.has(messageId)) {
+    const cachedHtml = renderCache.get(messageId)!;
+    return (
+      <div
+        className={`prose-ai break-words overflow-hidden min-w-0 max-w-full message-block ${className}`}
+        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', WebkitTextSizeAdjust: '100%', textSizeAdjust: '100%' }}
+        dangerouslySetInnerHTML={{ __html: cachedHtml }}
+      />
+    );
+  }
+
+  return <MarkdownRendererInner {...props} />;
+}
+
+export function MarkdownRendererInner({ content, className = '', isStreaming = false, messageId }: MarkdownRendererProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,7 +131,8 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false 
   const [renderVersion, setRenderVersion] = useState(0);
 
   const processedContent = useMemo(() => {
-    return preprocessLatex(content);
+    // sanitizeLLMContent = sanitizeContent (strips broken HTML/CSS) → preprocessLatex (normalises math delimiters)
+    return sanitizeLLMContent(content);
   }, [content]);
 
   const { segments, mathPlaceholders } = useMemo(() => extractAndReplaceMath(processedContent), [processedContent]);
@@ -135,14 +186,31 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false 
       if (hasChanges) { setMathBlocks(newBlocks); setRenderVersion(v => v + 1); }
       rafIdRef.current = null;
     });
-    return () => { if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current); };
   }, [mathPlaceholders, isStreaming, content]);
+
+  useEffect(() => {
+    if (messageId && !isStreaming && containerRef.current) {
+      const html = containerRef.current.innerHTML;
+      if (html) {
+        renderCache.set(messageId, html);
+      }
+    }
+  }, [messageId, isStreaming, finalContent]);
 
   const mathHeavyClass = isMathHeavy(content) ? 'math-heavy' : '';
 
   return (
     <div ref={containerRef} className={'prose-ai break-words overflow-hidden min-w-0 max-w-full message-block ' + (isStreaming ? 'streaming ' : '') + mathHeavyClass + ' ' + className} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', WebkitTextSizeAdjust: '100%', textSizeAdjust: '100%' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={{
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[
+          rehypeRaw,
+          // rehype-katex renders any $...$ / $$...$$ / \(...\) / \[...\] the remark-math
+          // plugin extracted — acting as a reliable fallback for blocks our custom RAF
+          // pipeline may not yet have processed during streaming.
+          [rehypeKatex, { throwOnError: false, trust: false, strict: false }],
+        ]}
+        components={{
         h1: ({ children }) => <h1 className="text-lg sm:text-xl md:text-2xl font-bold mt-4 sm:mt-6 mb-2 sm:mb-4 text-foreground border-b border-border pb-2 break-words">{children}</h1>,
         h2: ({ children }) => <h2 className="text-base sm:text-lg md:text-xl font-semibold mt-3 sm:mt-5 mb-2 sm:mb-3 text-foreground break-words">{children}</h2>,
         h3: ({ children }) => <h3 className="text-sm sm:text-base md:text-lg font-semibold mt-2 sm:mt-4 mb-1 sm:mb-2 text-foreground break-words">{children}</h3>,
@@ -154,7 +222,11 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false 
         ol: ({ children }) => <ol className="list-decimal list-outside ml-4 sm:ml-5 mb-2 sm:mb-4 space-y-1 sm:space-y-1.5 text-xs sm:text-sm md:text-base">{children}</ol>,
         li: ({ children }) => <li className="text-foreground leading-relaxed pl-1 break-words">{children}</li>,
         blockquote: ({ children }) => <blockquote className="border-l-4 border-primary pl-3 sm:pl-4 py-2 sm:py-3 my-2 sm:my-4 bg-muted/50 rounded-r-lg italic text-xs sm:text-sm md:text-base overflow-hidden">{children}</blockquote>,
-        table: ({ children }) => <div className="overflow-x-auto my-3 sm:my-4 -mx-2 sm:mx-0 rounded-lg border border-border"><table className="min-w-full divide-y divide-border text-xs sm:text-sm">{children}</table></div>,
+        table: ({ children }) => (
+          <div className="table-layout-wrapper">
+            <table>{children}</table>
+          </div>
+        ),
         thead: ({ children }) => <thead className="bg-muted/80">{children}</thead>,
         th: ({ children }) => <th className="px-2 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">{children}</th>,
         td: ({ children }) => <td className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-foreground border-t border-border break-words">{children}</td>,
@@ -162,6 +234,7 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false 
         hr: () => <hr className="my-4 sm:my-6 border-border" />,
         code: ({ className: codeClassName, children }) => {
           const match = /language-(\w+)/.exec(codeClassName || '');
+          const lang = match ? match[1] : '';
           const text = String(children);
           const isInline = !match && !text.includes('\n');
           if (isInline) {
@@ -171,8 +244,43 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false 
               </code>
             );
           }
+          if (lang === 'json-chart' || lang === 'chart-json' || lang === 'chart' || lang === 'graph-config') {
+            try {
+              const rawText = text.replace(/\n$/, '');
+              let parsed: unknown;
+              try {
+                parsed = JSON.parse(rawText);
+              } catch (jsonErr) {
+                // JSON parse failed — show graceful fallback instead of raw code
+                return <ChartErrorFallback reason={`Invalid JSON: ${(jsonErr as Error).message}`} />;
+              }
+              const charts = Array.isArray(parsed) ? parsed : [parsed];
+              // Validate each chart spec has the minimum required shape
+              const validCharts = charts.filter(
+                (c): c is { type: string; data: unknown[] } =>
+                  c !== null &&
+                  typeof c === 'object' &&
+                  typeof (c as Record<string, unknown>).type === 'string' &&
+                  Array.isArray((c as Record<string, unknown>).data) &&
+                  ((c as Record<string, unknown>).data as unknown[]).length > 0
+              );
+              if (validCharts.length === 0) {
+                return <ChartErrorFallback reason="Chart data is empty or missing required fields (type, data[])." />;
+              }
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 w-full">
+                  {validCharts.map((chartSpec, idx) => (
+                    <ChartRenderer key={idx} chart={chartSpec as Parameters<typeof ChartRenderer>[0]['chart']} />
+                  ))}
+                </div>
+              );
+            } catch (e) {
+              // Unexpected error (e.g. rendering crash)
+              return <ChartErrorFallback reason={(e as Error)?.message} />;
+            }
+          }
           return (
-            <CodeBlock language={match ? match[1] : ''} isDark={isDark}>
+            <CodeBlock language={lang} isDark={isDark}>
               {text.replace(/\n$/, '')}
             </CodeBlock>
           );
@@ -186,9 +294,35 @@ export function MarkdownRenderer({ content, className = '', isStreaming = false 
   );
 }
 
+// ─── Chart Error Fallback ──────────────────────────────────────────────────────
+
+/**
+ * Graceful fallback shown when the AI emits a chart tool call with invalid data.
+ * Never shows a raw code block or crashes the widget.
+ */
+function ChartErrorFallback({ reason }: { reason?: string }) {
+  return (
+    <div className="my-4 flex flex-col items-center justify-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/15">
+        <AlertTriangle className="h-5 w-5 text-destructive" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-destructive">Chart could not be rendered</p>
+        {reason && (
+          <p className="mt-1 max-w-sm text-xs text-muted-foreground">{reason}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <RefreshCw className="h-3 w-3" />
+        <span>Try asking the AI to regenerate the chart</span>
+      </div>
+    </div>
+  );
+}
+
 interface CodeBlockProps { children: string; language: string; isDark: boolean; }
 
-function CodeBlock({ children, language, isDark }: CodeBlockProps) {
+export function CodeBlock({ children, language, isDark }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const copyCode = useCallback(() => {

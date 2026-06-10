@@ -167,6 +167,8 @@ export function MessageBubble({
                 <MarkdownRenderer 
                   content={message.content} 
                   className="text-xs sm:text-sm" 
+                  messageId={message.id}
+                  isStreaming={isStreaming}
                 />
                 {/* AI-generated chart */}
                 {message.chart && <ChartRenderer chart={message.chart} />}

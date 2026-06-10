@@ -1,5 +1,16 @@
-/* Math rendering fixes */
+/* ─────────────────────────────────────────────────────────────────────────────
+   TanoAI — RenderingFix.css
+   Strict overflow containment for chat bubbles, code blocks, and math.
+   Rule of thumb:
+     • Parent flex/grid containers  → min-w-0 (prevents flex children blowing out)
+     • Scrollable containers        → overflow-x: auto  (scroll, don't stretch)
+     • Text containers              → overflow-wrap: anywhere; word-break: break-word
+     • <pre> / code blocks          → white-space: pre (preserve syntax) + overflow-x: auto
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Math (KaTeX) ────────────────────────────────────────────────────────── */
 .katex {
+  /* Let display math scroll rather than expand the viewport */
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -9,26 +20,136 @@
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Code block fixes */
-.prose-ai pre {
-  overflow-x: auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  word-break: break-word;
-  white-space: pre-wrap;
+  /* Stop the display block from becoming a flex-blowout source */
   max-width: 100%;
+  box-sizing: border-box;
 }
 
-.prose-ai code {
+/* The rendered HTML container we inject via dangerouslySetInnerHTML */
+.katex-container {
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  max-width: 100%;
+  box-sizing: border-box;
 }
 
-/* Responsive math display */
+.katex-html {
+  /* Inline math: let it scroll, never stretch the parent */
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────────────── */
+/*
+   CRITICAL: white-space:pre-wrap causes the <pre> to grow with the content.
+   Use white-space:pre + overflow-x:auto instead so long lines scroll.
+*/
+.prose-ai pre,
+.code-block-container pre,
+.code-block-container div[class*="language-"] {
+  /* Scroll long lines — never stretch the parent container */
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Keep syntax formatting but don't wrap (wrapping = horizontal blowout) */
+  white-space: pre;
+  /* Hard width cap */
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  /* Prevent this block from becoming the min-content width source */
+  contain: inline-size;
+}
+
+.prose-ai code {
+  /* Inline code: break on word boundaries, don't stretch */
+  max-width: 100%;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* The outer wrapper div we render for each code block */
+.code-block-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;               /* ← essential for flex children */
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ── Message / prose containers ──────────────────────────────────────────── */
+.prose-ai {
+  /* The root container must constrain all children */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+/*
+   FIXED: was `overflow: hidden` which clips scrollable children.
+   Now we only clip on the y-axis and let x-children scroll internally.
+*/
+.prose-ai > * {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  /* Do NOT set overflow:hidden here — it prevents children from scrolling */
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+.table-layout-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Isolate the table's width from the flex parent */
+  min-width: 0;
+}
+
+.prose-ai table {
+  /* Table itself sizes to content; wrapper scrolls */
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.prose-ai th,
+.prose-ai td {
+  padding: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  /* Prevent individual cells from expanding the table past the wrapper */
+  max-width: 40ch;
+  overflow-wrap: anywhere;
+}
+
+/* ── Chart / graph wrappers ──────────────────────────────────────────────── */
+.chart-wrapper,
+.recharts-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* ── Message bubble scroll fix ───────────────────────────────────────────── */
+.message-content {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* ── Responsive math scaling ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .katex-display {
     font-size: 0.85em;
@@ -59,47 +180,7 @@
   }
 }
 
-/* Ensure proper table rendering */
-.prose-ai table {
-  overflow-x: auto;
-  display: block;
-  border-collapse: collapse;
-}
-
-.prose-ai thead,
-.prose-ai tbody,
-.prose-ai tr {
-  display: contents;
-}
-
-.prose-ai th,
-.prose-ai td {
-  padding: 0.5rem;
-  border: 1px solid hsl(var(--border));
-}
-
-/* Message bubble scroll fix */
-.message-content {
-  overflow-x: auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
-}
-
-/* Ensure math doesn't break layout */
-.prose-ai > * {
-  max-width: 100%;
-  overflow: hidden;
-}
-
-/* Fix for inline math */
-.katex-html {
-  overflow-x: auto;
-  display: inline-block;
-  white-space: nowrap;
-}
-
-/* Loading indicator smooth animation */
+/* ── Loading indicator ───────────────────────────────────────────────────── */
 @keyframes pulse-smooth {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

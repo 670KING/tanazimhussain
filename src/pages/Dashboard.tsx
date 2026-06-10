@@ -175,7 +175,7 @@ export default function Dashboard() {
             <div
               key={conv.id}
               className={cn(
-                'group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all duration-200',
+                'group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all duration-200 w-full min-w-0',
                 currentConversation?.id === conv.id
                   ? 'bg-primary/10 text-primary border border-primary/20'
                   : 'hover:bg-muted/80 border border-transparent'
@@ -221,8 +221,8 @@ export default function Dashboard() {
       </Sheet>
 
       {/* Desktop Sidebar */}
-      <div className="w-72 hidden lg:flex flex-col flex-shrink-0">
-        <Card className="flex-1 flex flex-col border-border/50 overflow-hidden">
+      <div className="w-72 max-w-[18rem] hidden lg:flex flex-col flex-shrink-0 min-w-0">
+        <Card className="flex-1 flex flex-col border-border/50 overflow-hidden min-w-0">
           <SidebarContent />
         </Card>
       </div>
@@ -327,7 +327,7 @@ export default function Dashboard() {
 
         {/* Messages - Fixed scroll container */}
         <CardContent className="flex-1 p-0 overflow-hidden min-h-0 flex flex-col">
-          <ScrollArea ref={scrollAreaRef} className="flex-1 w-full">
+          <ScrollArea ref={scrollAreaRef} className="flex-1 w-full chat-scroll-area">
             <div className="p-3 sm:p-4 space-y-4 sm:space-y-5 w-full min-h-full">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center py-8 sm:py-12 text-center px-4">
