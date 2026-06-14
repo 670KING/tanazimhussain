@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
@@ -65,7 +65,32 @@ async function callTool<T = any>(payload: Record<string, unknown>): Promise<T | 
   }
 }
 
-export function useChat() {
+export interface ChatContextType {
+  messages: Message[];
+  isLoading: boolean;
+  currentConversation: Conversation | null;
+  conversations: Conversation[];
+  currentModel: string | null;
+  isVisionMode: boolean;
+  sendMessage: (
+    content: string,
+    model?: string,
+    type?: 'chat' | 'quiz' | 'study_plan' | 'summary' | 'vision' | 'pdf',
+    images?: string[],
+    pdfOptions?: PDFOptions
+  ) => Promise<string>;
+  createConversation: (model?: string) => Promise<Conversation | null>;
+  loadConversation: (conversationId: string) => Promise<void>;
+  fetchConversations: () => Promise<void>;
+  deleteConversation: (conversationId: string) => Promise<void>;
+  clearCurrentChat: () => void;
+  regenerateLastMessage: (model?: string) => Promise<void>;
+  continueResponse: (model?: string) => Promise<string>;
+}
+
+const ChatContext = createContext<ChatContextType | undefined>(undefined);
+
+export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -197,12 +222,21 @@ export function useChat() {
     let routerPrompt = '';
     let routerTitle = '';
     if (type === 'chat' && !hasImages) {
+      let routerMessage = content;
+      // Prepend previous assistant message if it exists, to give context for requests like "make pdf"
+      if (messages.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.role === 'assistant') {
+          routerMessage = `Context of previous discussion:\n${lastMsg.content.slice(0, 1000)}\n\nUser current request: ${content}`;
+        }
+      }
+
       const routed = await callTool<{
         intent: 'text' | 'pdf' | 'chart';
         explanation: string;
         title: string;
         prompt: string;
-      }>({ tool: 'router', message: content, hasImages: false });
+      }>({ tool: 'router', message: routerMessage, hasImages: false });
       if (routed?.intent) {
         detectedIntent = routed.intent;
         routerPrompt = routed.prompt || content;
@@ -235,10 +269,43 @@ export function useChat() {
     let assistantContent = '';
 
     try {
-      const allMessages = [...messages, userMessage].map(m => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const savedLevel = localStorage.getItem('academicLevel') || 'undergraduate';
+      const savedRole = localStorage.getItem('academicRole') || 'undergraduate';
+      const savedLength = localStorage.getItem('responseLength') || 'balanced';
+
+      const levelMap: Record<string, string> = {
+        highschool: 'Introductory (High School Level)',
+        undergraduate: 'Intermediate (Undergraduate College Level)',
+        graduate: 'Advanced (Graduate / PhD Researcher Level)',
+        researcher: 'Professional Researcher / Expert Academic Level'
+      };
+
+      const roleMap: Record<string, string> = {
+        highschool: 'High School Student',
+        undergraduate: 'Undergraduate Student',
+        graduate: 'Graduate Student / Researcher',
+        educator: 'Academic Faculty / Educator',
+        other: 'Independent Scholar'
+      };
+
+      const lengthMap: Record<string, string> = {
+        concise: 'Concise & Direct (short, straight to the point, avoiding fluff)',
+        balanced: 'Standard / Balanced (structured, comprehensive yet clear)',
+        detailed: 'Detailed & Complete (thorough explanations, complete proofs/derivations, and comprehensive details)'
+      };
+
+      const systemPrefs = `You are interacting with a user whose profile preferences are:
+- Academic Role: ${roleMap[savedRole] || savedRole}
+- Target Scholar Depth/Level: ${levelMap[savedLevel] || savedLevel}
+- Preferred Explanation Style: ${lengthMap[savedLength] || savedLength}
+
+Please adapt your explanations, depth of formulas, mathematical rigor, and length of response to match these preferences precisely. Always maintain extreme precision and premium academic formatting, utilizing LaTeX for math equations.`;
+
+      const allMessages = [
+        { role: 'system' as const, content: systemPrefs },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: userMessage.content }
+      ];
 
       // Bias the system to also produce a short explanation when image/pdf is chosen.
       const intentInstruction =
@@ -386,10 +453,32 @@ export function useChat() {
             ? { ...m, attachmentTitle: 'Preparing your document…' }
             : m
         ));
+
+        // Format conversation history to pass as the document topic context
+        let pdfTopic = routerPrompt || content;
+        if (messages.length > 0) {
+          const formattedHistory = messages
+            .filter(m => {
+              const text = m.content.toLowerCase();
+              const isPdfAck = text.includes('generating the pdf') || text.includes('tap to preview pdf');
+              const isFailedMsg = text.includes('document generation failed');
+              return m.role !== 'system' && !isPdfAck && !isFailedMsg;
+            })
+            .map(m => {
+              const roleName = m.role === 'user' ? 'User' : 'Assistant';
+              return `[${roleName}]:\n${m.content}`;
+            })
+            .join('\n\n');
+
+          if (formattedHistory.trim()) {
+            pdfTopic = `Create a professional study guide, assignment sheet, or report summarizing and explaining the following academic discussion between the User and the Assistant:\n\n${formattedHistory}\n\nUser request: ${routerPrompt || content}`;
+          }
+        }
+
         const out = await callTool<{ html: string; title: string; template: string }>({
           tool: 'pdf',
           title: routerTitle || content.slice(0, 60),
-          topic: routerPrompt || content,
+          topic: pdfTopic,
           length: 'medium',
         });
         setMessages(prev => prev.map((m, i) => {
@@ -450,8 +539,41 @@ export function useChat() {
     setIsLoading(true);
     
     try {
+      const savedLevel = localStorage.getItem('academicLevel') || 'undergraduate';
+      const savedRole = localStorage.getItem('academicRole') || 'undergraduate';
+      const savedLength = localStorage.getItem('responseLength') || 'balanced';
+
+      const levelMap: Record<string, string> = {
+        highschool: 'Introductory (High School Level)',
+        undergraduate: 'Intermediate (Undergraduate College Level)',
+        graduate: 'Advanced (Graduate / PhD Researcher Level)',
+        researcher: 'Professional Researcher / Expert Academic Level'
+      };
+
+      const roleMap: Record<string, string> = {
+        highschool: 'High School Student',
+        undergraduate: 'Undergraduate Student',
+        graduate: 'Graduate Student / Researcher',
+        educator: 'Academic Faculty / Educator',
+        other: 'Independent Scholar'
+      };
+
+      const lengthMap: Record<string, string> = {
+        concise: 'Concise & Direct (short, straight to the point, avoiding fluff)',
+        balanced: 'Standard / Balanced (structured, comprehensive yet clear)',
+        detailed: 'Detailed & Complete (thorough explanations, complete proofs/derivations, and comprehensive details)'
+      };
+
+      const systemPrefs = `You are interacting with a user whose profile preferences are:
+- Academic Role: ${roleMap[savedRole] || savedRole}
+- Target Scholar Depth/Level: ${levelMap[savedLevel] || savedLevel}
+- Preferred Explanation Style: ${lengthMap[savedLength] || savedLength}
+
+Please adapt your explanations, depth of formulas, mathematical rigor, and length of response to match these preferences precisely. Always maintain extreme precision and premium academic formatting, utilizing LaTeX for math equations.`;
+
       // Send a continue request with context
       const continueMessages = [
+        { role: 'system' as const, content: systemPrefs },
         ...messages.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
         { role: 'user' as const, content: messages[messages.length - 2]?.content || '' },
         { role: 'assistant' as const, content: lastMessage.content },
@@ -582,20 +704,34 @@ export function useChat() {
     setIsVisionMode(false);
   };
 
-  return {
-    messages,
-    isLoading,
-    currentConversation,
-    conversations,
-    currentModel,
-    isVisionMode,
-    sendMessage,
-    createConversation,
-    loadConversation,
-    fetchConversations,
-    deleteConversation,
-    clearCurrentChat,
-    regenerateLastMessage,
-    continueResponse,
-  };
+  return React.createElement(
+    ChatContext.Provider,
+    {
+      value: {
+        messages,
+        isLoading,
+        currentConversation,
+        conversations,
+        currentModel,
+        isVisionMode,
+        sendMessage,
+        createConversation,
+        loadConversation,
+        fetchConversations,
+        deleteConversation,
+        clearCurrentChat,
+        regenerateLastMessage,
+        continueResponse,
+      }
+    },
+    children
+  );
+}
+
+export function useChat() {
+  const context = useContext(ChatContext);
+  if (context === undefined) {
+    throw new Error('useChat must be used within a ChatProvider');
+  }
+  return context;
 }

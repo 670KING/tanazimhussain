@@ -10,12 +10,16 @@ const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 // ONLY user-specified free OpenRouter models
 const FREE_TEXT_MODELS = [
   { id: 'gpt-oss-120b',     name: 'openai/gpt-oss-120b:free',         context: 131072 },
+  { id: 'liquid-lfm',       name: 'liquid/lfm-2.5-1.2b-instruct:free', context: 32768 },
+  { id: 'nemotron-ultra',   name: 'nvidia/nemotron-3-ultra-550b-a55b:free', context: 131072 },
+  { id: 'nemotron-nano',    name: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:nitro', context: 65536 },
   { id: 'hy3-preview',      name: 'tencent/hy3-preview:free',         context: 131072 },
   { id: 'ling-2.6-1t',      name: 'inclusionai/ling-2.6-1t:free',     context: 131072 },
   { id: 'gemma-4-31b',      name: 'google/gemma-4-31b-it:free',       context: 131072 },
 ];
 
 const FREE_VISION_MODELS = [
+  { id: 'llama-nemotron-vl', name: 'nvidia/llama-nemotron-rerank-vl-1b-v2:free',             context: 8192 },
   { id: 'gemma-4-31b-vision', name: 'google/gemma-4-31b-it:free',                          context: 131072 },
   { id: 'nemotron-omni',      name: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',  context: 128000 },
 ];
@@ -23,9 +27,13 @@ const FREE_VISION_MODELS = [
 const MODEL_ALIASES: Record<string, string> = {};
 for (const m of [...FREE_TEXT_MODELS, ...FREE_VISION_MODELS]) {
   MODEL_ALIASES[m.id] = m.name;
+  MODEL_ALIASES[m.name] = m.name;
 }
 
-const VISION_MODEL_IDS = FREE_VISION_MODELS.map(m => m.id);
+const VISION_MODEL_IDS = [
+  ...FREE_VISION_MODELS.map(m => m.id),
+  ...FREE_VISION_MODELS.map(m => m.name)
+];
 
 /**
  * Minimal safe HTML template used as a render fallback when the model
@@ -239,16 +247,16 @@ Rules:
 const getSystemPrompt = (type: string) => {
   switch (type) {
     case 'quiz':
-      return `You are TanoAI Quiz Generator. Generate quiz questions in valid JSON format only.
+      return `You are Tanoedu AI Quiz Generator. Generate quiz questions in valid JSON format only.
 Return ONLY a JSON array: [{"question": "...", "type": "multiple_choice", "options": ["A","B","C","D"], "correct_answer": "A", "explanation": "..."}]
 ${MATH_INSTRUCTIONS}`;
 
     case 'study_plan':
-      return `You are TanoAI Study Planner. Create study plans in valid JSON format only.
+      return `You are Tanoedu AI Study Planner. Create study plans in valid JSON format only.
 Return ONLY: {"title": "...", "topics": [{"name": "...", "duration": "...", "description": "...", "completed": false, "resources": ["..."]}], "tips": ["..."], "milestones": ["..."]}`;
 
     case 'summary':
-      return `You are TanoAI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
+      return `You are Tanoedu AI Summarizer. Provide clear, comprehensive summaries.\n${MATH_INSTRUCTIONS}`;
 
     case 'pdf':
       return `You are an advanced HTML-to-PDF document engine in PREMIUM DESIGN + ZERO ERROR + VISUAL INTELLIGENCE MODE.
@@ -366,13 +374,13 @@ FAIL-SAFE: Never attempt risky formatting. Output must render correctly across A
 Return ONLY the complete HTML document.`;
 
     case 'vision':
-      return `You are TanoAI Vision Assistant. Analyze images in detail: describe elements, extract text, explain math/diagrams with LaTeX, interpret charts.\n${MATH_INSTRUCTIONS}`;
+      return `You are Tanoedu AI Vision Assistant. Analyze images in detail: describe elements, extract text, explain math/diagrams with LaTeX, interpret charts.\n${MATH_INSTRUCTIONS}`;
 
     case 'resume':
-      return `You are TanoAI Resume Writer. Use strong action verbs, quantify achievements, keep bullets concise, use industry keywords. Return only improved text.`;
+      return `You are Tanoedu AI Resume Writer. Use strong action verbs, quantify achievements, keep bullets concise, use industry keywords. Return only improved text.`;
 
     default:
-      return `You are TanoAI, an advanced academic assistant. Help with learning, homework, research, exams, writing, code, and math.
+      return `You are Tanoedu AI, an advanced academic assistant. Help with learning, homework, research, exams, writing, code, and math.
 
 **Formatting:** Use **bold**, \`code blocks\`, headings (#), bullet points, tables, > blockquotes.
 
@@ -390,8 +398,8 @@ async function callModel(modelName: string, messages: any[], stream: boolean, te
     headers: {
       'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://tanoai.lovable.app',
-      'X-Title': 'TanoAI',
+      'HTTP-Referer': 'https://tanoedu-ai.web.app',
+      'X-Title': 'Tanoedu AI',
     },
     body: JSON.stringify({
       model: modelName,

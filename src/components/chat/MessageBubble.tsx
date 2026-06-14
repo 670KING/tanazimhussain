@@ -117,7 +117,7 @@ export function MessageBubble({
   const [previewOpen, setPreviewOpen] = useState(false);
 
   return (
-    <div className={cn('flex items-start gap-2 sm:gap-3 group', isUser && 'flex-row-reverse')}>
+    <div className={cn('flex items-start gap-2 sm:gap-3 group min-w-0 max-w-full w-full', isUser && 'flex-row-reverse')}>
       {/* Avatar */}
       <div
         className={cn(
@@ -135,10 +135,10 @@ export function MessageBubble({
       {/* Message content */}
       <div
         className={cn(
-          'rounded-2xl px-3 py-2 sm:px-4 sm:py-3 max-w-[calc(100%-3rem)] sm:max-w-[85%] md:max-w-[80%] min-w-0 flex-1 sm:flex-initial relative transition-all duration-200 overflow-hidden',
+          'min-w-0 relative transition-all duration-200',
           isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-md shadow-sm'
-            : 'bg-muted/80 rounded-tl-md border border-border/50 hover:border-border'
+            ? 'rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 max-w-[calc(100%-3rem)] sm:max-w-[85%] md:max-w-[70%] flex-1 sm:flex-initial bg-secondary/80 dark:bg-muted/70 text-foreground shadow-sm overflow-hidden border border-border/40'
+            : 'bg-transparent border-none p-0 pt-1 pb-6 shadow-none flex-1 min-w-0 max-w-full'
         )}
       >
         {/* User images with error handling */}
@@ -157,7 +157,7 @@ export function MessageBubble({
 
         {/* Message content */}
         {isUser ? (
-          <div className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed overflow-hidden max-w-full">
+          <div className="text-sm sm:text-[15px] whitespace-pre-wrap break-words leading-relaxed overflow-hidden max-w-full">
             {message.content}
           </div>
         ) : (
@@ -166,7 +166,7 @@ export function MessageBubble({
               <>
                 <MarkdownRenderer 
                   content={message.content} 
-                  className="text-xs sm:text-sm" 
+                  className="text-sm sm:text-[15px] leading-relaxed" 
                   messageId={message.id}
                   isStreaming={isStreaming}
                 />
@@ -246,7 +246,7 @@ export function MessageBubble({
         {message.timestamp && (
           <div className={cn(
             'flex items-center gap-1 mt-1.5 text-[9px] sm:text-[10px]',
-            isUser ? 'text-primary-foreground/60' : 'text-muted-foreground'
+            isUser ? 'text-muted-foreground/60' : 'text-muted-foreground'
           )}>
             <Clock className="w-2.5 h-2.5" />
             <span>
@@ -265,7 +265,7 @@ export function MessageBubble({
         
         {/* Actions for assistant messages */}
         {!isUser && message.content && (
-          <div className="absolute -right-1 sm:-right-2 -top-1 sm:-top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="mt-2.5 flex items-center justify-start">
             <MessageActions 
               content={message.content} 
               onRegenerate={onRegenerate}

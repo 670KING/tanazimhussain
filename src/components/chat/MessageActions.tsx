@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { quickDownloadPDF } from '@/components/pdf/UltraPDFGenerator';
 import { printHTMLToPDF, buildPrintableHTMLFromMarkdown } from '@/components/pdf/HTMLPDFExporter';
+import { PDFPreviewDialog } from './PDFPreviewDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +37,7 @@ export function MessageActions({
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState<boolean | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(content);
@@ -49,39 +51,21 @@ export function MessageActions({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `tanoai_response_${Date.now()}.txt`;
+    a.download = `tanoedu_ai_response_${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Downloaded as text file');
   };
 
-  const downloadAsPDF = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    try {
-      // Premium TEXT-BASED PDF: render same markdown (with KaTeX math) into a
-      // print-ready HTML, then print via native browser → real selectable text,
-      // not a flattened image. Works for plain markdown OR self-contained HTML.
-      const isHtml = /<html[\s>]/i.test(content) || /<!DOCTYPE/i.test(content);
-      if (isHtml) {
-        await quickDownloadPDF(content, 'TanoAI_Response');
-      } else {
-        const html = buildPrintableHTMLFromMarkdown(content, 'TanoAI Response');
-        await printHTMLToPDF(html, 'TanoAI_Response.pdf');
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to generate PDF');
-    } finally {
-      setIsExporting(false);
-    }
+  const downloadAsPDF = () => {
+    setPreviewOpen(true);
   };
 
   const shareContent = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'TanoAI Response',
+          title: 'Tanoedu AI Response',
           text: content,
         });
       } catch (error) {
@@ -95,7 +79,7 @@ export function MessageActions({
   };
 
   return (
-    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="flex items-center gap-1 opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
       {/* Copy */}
       <Button
         size="icon"
@@ -181,6 +165,14 @@ export function MessageActions({
           <RefreshCw className="w-3.5 h-3.5" />
         </Button>
       )}
+
+      <PDFPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        markdown={content}
+        html={(/<html[\s>]/i.test(content) || /<!DOCTYPE/i.test(content)) ? content : buildPrintableHTMLFromMarkdown(content, 'Tanoedu AI Response')}
+        title="Document Preview"
+      />
     </div>
   );
 }

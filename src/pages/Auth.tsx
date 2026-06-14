@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, GraduationCap, Sparkles, Brain, BookOpen } from 'lucide-react';
+import { Loader2, Sparkles, Brain, BookOpen } from 'lucide-react';
+import { SEO } from '@/components/layout/SEO';
 import { z } from 'zod';
 
 const emailSchema = z.string().email('Please enter a valid email address');
@@ -90,7 +91,7 @@ export default function Auth() {
     } else {
       toast({
         title: 'Account created!',
-        description: 'Welcome to TanoAI. You can now access all features.',
+        description: 'Welcome to Tanoedu AI. You can now access all features.',
       });
       navigate('/dashboard');
     }
@@ -98,15 +99,19 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex">
+      <SEO 
+        title="Sign In" 
+        description="Sign in or register to Tanoedu AI to access educational AI features including Chat, Quizzes, Summarizers, and Study Planners."
+        keywords="Tanoedu, Tanoedu AI, login, authentication, student login"
+      />
+
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 gradient-hero relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-accent/10 to-transparent" />
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-20">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-glow">
-              <GraduationCap className="w-8 h-8 text-primary-foreground" />
-            </div>
-            <span className="text-4xl font-bold text-gradient">TanoAI</span>
+          <div className="flex items-center gap-3 mb-8 cursor-pointer" onClick={() => navigate('/')}>
+            <img src="/logo.svg" className="w-14 h-14 object-contain hover:scale-105 transition-transform" alt="Tanoedu AI Logo" />
+            <span className="text-4xl font-bold text-gradient">Tanoedu AI</span>
           </div>
           
           <h1 className="text-4xl xl:text-5xl font-bold text-foreground mb-6 leading-tight">
@@ -142,11 +147,9 @@ export default function Auth() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <span className="text-3xl font-bold text-gradient">TanoAI</span>
+          <div className="flex items-center gap-3 mb-8 lg:hidden cursor-pointer" onClick={() => navigate('/')}>
+            <img src="/logo.svg" className="w-12 h-12 object-contain" alt="Tanoedu AI Logo" />
+            <span className="text-3xl font-bold text-gradient">Tanoedu AI</span>
           </div>
 
           <Card className="border-0 shadow-lg">

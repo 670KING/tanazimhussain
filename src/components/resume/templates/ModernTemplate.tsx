@@ -24,7 +24,7 @@ export function ModernTemplate({ data, config }: TemplateProps) {
 
   return (
     <div 
-      className="bg-white text-gray-800 w-full max-w-[210mm] mx-auto shadow-lg"
+      className="resume-modern bg-white text-gray-800 w-full max-w-[210mm] mx-auto shadow-lg"
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       {/* Header */}

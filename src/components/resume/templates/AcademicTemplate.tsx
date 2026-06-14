@@ -17,7 +17,7 @@ export function AcademicTemplate({ data, config }: TemplateProps) {
 
   return (
     <div 
-      className="bg-white text-gray-900 w-full max-w-[210mm] mx-auto shadow-lg p-8"
+      className="resume-academic bg-white text-gray-900 w-full max-w-[210mm] mx-auto shadow-lg p-8"
       style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
     >
       {/* Header - Centered, Traditional */}

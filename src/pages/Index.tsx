@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import { SEO } from '@/components/layout/SEO';
 import { 
   GraduationCap, 
   Sparkles, 
@@ -62,7 +63,7 @@ const features = [
 ];
 
 const testimonials = [
-  { name: 'Sarah K.', role: 'Medical Student', text: 'TanoAI helped me ace my anatomy exams. The quiz feature is incredible!' },
+  { name: 'Sarah K.', role: 'Medical Student', text: 'Tanoedu AI helped me ace my anatomy exams. The quiz feature is incredible!' },
   { name: 'James M.', role: 'CS Major', text: 'The AI explains complex algorithms better than my textbooks.' },
   { name: 'Emily R.', role: 'Law Student', text: 'Study plans keep me organized during exam season. Highly recommend!' },
 ];
@@ -79,19 +80,37 @@ export default function Index() {
     }
   };
 
+  const schemaData = {
+    "@type": "SoftwareApplication",
+    "name": "Tanoedu AI",
+    "operatingSystem": "All",
+    "applicationCategory": "EducationalApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Your AI-powered academic assistant for quiz generation, text summarization, study planning, resume building, and interactive study help."
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <SEO 
+        title="Tanoedu AI - Premium AI-Powered Academic Assistant"
+        description="Study smarter with Tanoedu AI. Utilize smart quizzes, study plans, document summarizers, and AI chat assistants backed by modern language models."
+        keywords="Tanoedu, Tanoedu AI, academic assistant, AI study planner, quiz builder"
+        schemaData={schemaData}
+      />
+
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 gradient-hero" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent" />
         
         <header className="relative z-10 max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-gradient">TanoAI</span>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
+            <img src="/logo.svg" className="w-10 h-10 object-contain hover:scale-105 transition-transform" alt="Tanoedu AI Logo" />
+            <span className="text-xl font-bold text-gradient">Tanoedu AI</span>
           </div>
           <div className="flex items-center gap-4">
             {user ? (
@@ -161,7 +180,7 @@ export default function Index() {
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, index) => (
-              <Card key={index} className="group hover:border-primary/30 transition-all hover:shadow-lg">
+              <Card key={index} className="group hover:border-primary/30 transition-all hover:shadow-lg cursor-pointer" onClick={() => navigate('/auth')}>
                 <CardContent className="pt-6">
                   <div className={`w-12 h-12 rounded-xl ${feature.bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                     <feature.icon className={`w-6 h-6 ${feature.color}`} />
@@ -209,7 +228,7 @@ export default function Index() {
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Transform Your Learning?</h2>
           <p className="text-lg text-muted-foreground mb-8">
-            Join thousands of students using TanoAI to study smarter and achieve more.
+            Join thousands of students using Tanoedu AI to study smarter and achieve more.
           </p>
           <Button size="lg" onClick={handleGetStarted} className="gradient-primary text-lg px-8 h-14 shadow-glow">
             Get Started Now <ArrowRight className="w-5 h-5 ml-2" />
@@ -218,17 +237,58 @@ export default function Index() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-4 border-t">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-primary-foreground" />
+      <footer className="border-t bg-card/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
+            <div className="col-span-2 space-y-4">
+              <div className="flex items-center gap-3">
+                <img src="/logo.svg" className="w-8 h-8 object-contain" alt="Tanoedu AI Logo" />
+                <span className="font-bold text-gradient text-lg">Tanoedu AI</span>
+              </div>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Empowering learners with advanced AI models to study smarter, organize better, and achieve academic excellence.
+              </p>
             </div>
-            <span className="font-bold text-gradient">TanoAI</span>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-4">Platform</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><button onClick={() => navigate('/auth')} className="hover:text-primary transition-colors">AI Chat</button></li>
+                <li><button onClick={() => navigate('/auth')} className="hover:text-primary transition-colors">Quiz Generator</button></li>
+                <li><button onClick={() => navigate('/auth')} className="hover:text-primary transition-colors">Study Plans</button></li>
+                <li><button onClick={() => navigate('/auth')} className="hover:text-primary transition-colors">Summarizer</button></li>
+                <li><button onClick={() => navigate('/auth')} className="hover:text-primary transition-colors">Resume Builder</button></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-4">Resources</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><button onClick={() => navigate('/docs')} className="hover:text-primary transition-colors font-medium">Documentation</button></li>
+                <li><button onClick={() => navigate('/help')} className="hover:text-primary transition-colors font-medium">Help Center</button></li>
+                <li><button onClick={() => navigate('/help')} className="hover:text-primary transition-colors">Contact Support</button></li>
+                <li><button onClick={() => navigate('/docs#api')} className="hover:text-primary transition-colors">API Reference</button></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><button onClick={() => navigate('/privacy')} className="hover:text-primary transition-colors">Privacy Policy</button></li>
+                <li><button onClick={() => navigate('/terms')} className="hover:text-primary transition-colors">Terms of Service</button></li>
+                <li><button onClick={() => navigate('/privacy#gdpr')} className="hover:text-primary transition-colors">GDPR Compliance</button></li>
+              </ul>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} TanoAI. Your AI-powered academic assistant.
-          </p>
+
+          <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-xs text-muted-foreground">
+              © {new Date().getFullYear()} Tanoedu AI. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Built with precision for professional-grade academic assistance.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

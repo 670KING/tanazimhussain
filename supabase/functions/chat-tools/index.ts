@@ -101,8 +101,8 @@ async function callOpenRouter(
     headers: {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://tanoai.lovable.app",
-      "X-Title": "TanoAI",
+      "HTTP-Referer": "https://tanoedu-ai.web.app",
+      "X-Title": "Tanoedu AI",
     },
     body: JSON.stringify({ model, ...body }),
   });
@@ -279,7 +279,7 @@ function pickTemplateFromTopic(topic: string): PdfTemplate {
   return "academic";
 }
 
-const PDF_SYSTEM_BASE = `You are the core document processing engine for Tanoedu. Transform raw user input into a flawless, professionally structured, error-free document optimized for PDF.
+const PDF_SYSTEM_BASE = `You are the core document processing engine for Tanoedu AI. Transform raw user input into a flawless, professionally structured, error-free document optimized for PDF.
 
 STRICT RULES:
 - Flawless grammar, spelling, and syntax. Natural, articulate, easy-to-read prose.
@@ -341,10 +341,16 @@ async function runPdf(
     console.warn("[pdf] validation issues:", validation.reasons);
   }
 
-  const css = templateCss(template);
-  const fullHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${safeTitle}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+  // Extract actual title from the first <h1> tag in the generated HTML body if possible
+  const h1Match = bodyHtml.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  const extractedTitle = h1Match 
+    ? h1Match[1].replace(/<[^>]*>/g, "").trim().slice(0, 100) 
+    : safeTitle;
 
-  return { html: fullHtml, title: safeTitle, template };
+  const css = templateCss(template);
+  const fullHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${extractedTitle}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+
+  return { html: fullHtml, title: extractedTitle, template };
 }
 
 // ---------- 3. CHART GENERATION (JSON spec for Recharts) ----------

@@ -56,6 +56,24 @@ export function sanitizeLLMContent(raw: string): string {
 // ─── LaTeX Preprocessing ─────────────────────────────────────────────────────
 
 /**
+ * Mathematically correct replacement of pipes (|) inside math blocks with
+ * \vert and \Vert commands to prevent markdown table formatting breakage
+ * while retaining absolute values, determinants, and norms. Also escapes
+ * raw percent symbols (%) to prevent LaTeX comment truncation.
+ */
+function replacePipesInMath(mathStr: string): string {
+  let cleaned = mathStr;
+  // 1. Replace pre-escaped or doubled pipes with \Vert
+  cleaned = cleaned.replace(/\\\|/g, '\\Vert');
+  cleaned = cleaned.replace(/\|\|/g, '\\Vert');
+  // 2. Replace remaining single pipes with \vert
+  cleaned = cleaned.replace(/\|/g, '\\vert');
+  // 3. Escape raw percent symbols (%) to prevent LaTeX comment truncation
+  cleaned = cleaned.replace(/(?<!\\)%/g, '\\%');
+  return cleaned;
+}
+
+/**
  * Advanced preprocessing for LaTeX content before KaTeX rendering.
  * Fixes 15+ common AI-generated LaTeX issues.
  */
@@ -77,23 +95,41 @@ export function preprocessLatex(content: string): string {
   
   // Step 2: Convert \[ \] to $$ $$ for display math  
   result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_, inner) => `\n$$\n${inner.trim()}\n$$\n`);
+
+  // Step 2.5: Normalize spaces inside inline math delimiters ($ math $ -> $math$)
+  // only if the content looks like math to avoid matching regular currency signs.
+  const isMathLike = (str: string): boolean => {
+    return /[\^_\\]/.test(str) || /[=+\-*/<>~≈±×÷≤≥≠≡]/.test(str);
+  };
+
+  result = result.replace(/(?<!\$)\$\s*([^$\n]+?)\s*\$(?!\$)/g, (match, inner) => {
+    if (isMathLike(inner)) {
+      return `$${inner.trim()}$`;
+    }
+    return match;
+  });
   
   // Step 3: Fix double-escaped LaTeX commands inside math
   const fixEscapedCommands = (mathStr: string): string => {
-    return mathStr.replace(/\\\\(frac|begin|end|sqrt|sum|int|prod|lim|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|text|mathbf|mathrm|mathbb|mathcal|vec|hat|bar|dot|ddot|tilde|overline|underline|overbrace|underbrace|left|right|big|Big|bigg|Bigg|bmatrix|pmatrix|matrix|vmatrix|Bmatrix|cases|align|aligned|equation|array|gather|split|multline|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|sinh|cosh|tanh|log|ln|exp|det|max|min|sup|inf|gcd|deg|ker|dim|hom|arg|alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|partial|nabla|forall|exists|nexists|in|notin|ni|cup|cap|subset|supset|subseteq|supseteq|setminus|land|lor|lnot|neg|sim|simeq|cong|propto|to|gets|mapsto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|Leftrightarrow|iff|implies|ldots|cdots|vdots|ddots|prime|circ|angle|perp|parallel|triangle|square|diamond|star|bullet|oplus|otimes|odot|dagger|ddagger|ell|wp|Re|Im|aleph|hbar|quad|qquad|hline|space|;|,|!|:|phantom|hspace|vspace|operatorname|binom|tbinom|dbinom|choose|atop|stackrel|overset|underset|xleftarrow|xrightarrow|cancel|boxed|color|textcolor|colorbox|tag|notag|label|ref|eqref|displaystyle|textstyle|scriptstyle)/g, '\\$1');
+    return mathStr.replace(/\\\\(frac|begin|end|sqrt|sum|int|prod|lim|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|text|mathbf|mathrm|mathbb|mathcal|vec|hat|bar|dot|ddot|tilde|overline|underline|overbrace|underbrace|left|right|big|Big|bigg|Bigg|bmatrix|pmatrix|matrix|vmatrix|Bmatrix|cases|align|aligned|equation|array|gather|split|multline|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|sinh|cosh|tanh|log|ln|exp|det|max|min|sup|inf|gcd|deg|ker|dim|hom|arg|alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|partial|nabla|forall|exists|nexists|in|notin|ni|cup|cap|subset|supset|subseteq|supseteq|setminus|land|lor|lnot|neg|sim|simeq|cong|propto|to|gets|mapsto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|Leftrightarrow|iff|implies|ldots|cdots|vdots|ddots|prime|circ|angle|perp|parallel|triangle|square|diamond|star|bullet|oplus|otimes|odot|dagger|ddagger|ell|wp|Re|Im|aleph|hbar|quad|qquad|hline|space|;|,|!|:|phantom|hspace|vspace|operatorname|binom|tbinom|dbinom|choose|atop|stackrel|overset|underset|xleftarrow|xrightarrow|cancel|boxed|color|textcolor|colorbox|tag|notag|label|ref|eqref|displaystyle|textstyle|scriptstyle|vert|Vert)/g, '\\$1');
   };
   
-  // Fix commands in display math blocks
-  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_match, inner) => {
-    return '$$\n' + fixEscapedCommands(inner.trim()) + '\n$$';
+  // Fix commands and double backslashes in display math blocks
+  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+    if (inner.includes('\n\n')) return match;
+    const fixed = fixEscapedCommands(inner.trim());
+    const doubled = fixed.replace(/(?<!\\)\\\\(?!\\)/g, '\\\\\\\\');
+    return '$$\n' + doubled + '\n$$';
   });
   
-  // Fix commands in inline math
-  result = result.replace(/\$([^$\n]+)\$/g, (match, inner) => {
+  // Fix commands and double backslashes in inline math
+  result = result.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (match, inner) => {
+    let processed = inner;
     if (inner.includes('\\\\') && /\\\\(frac|begin|sqrt|sum|int|cdot|alpha|beta|gamma|text|vec|hat|bar|overline)/.test(match)) {
-      return '$' + fixEscapedCommands(inner) + '$';
+      processed = fixEscapedCommands(inner);
     }
-    return match;
+    const doubled = processed.replace(/(?<!\\)\\\\(?!\\)/g, '\\\\\\\\');
+    return '$' + doubled + '$';
   });
   
   // Step 4: Wrap bare \begin{env}...\end{env} blocks in $$ if not already wrapped
@@ -132,20 +168,20 @@ export function preprocessLatex(content: string): string {
   // Step 8: Fix $$ that got merged onto same line as text
   result = result.replace(/([^\n])\$\$\s*\n/g, '$1\n$$\n');
   result = result.replace(/\n\s*\$\$([^\n$])/g, '\n$$\n$1');
-  // Step 9: Escape newlines and pipe characters inside math blocks and environments to prevent table parsing breakage
+  // Step 9: Clean pipe characters, percent signs, and newlines inside math blocks to prevent table parsing and rendering breakage
   result = result.replace(/\$\$([\s\S]+?)\$\$/g, (match, inner) => {
-    const cleanInner = inner.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+    if (inner.includes('\n\n')) return match;
+    const cleanInner = replacePipesInMath(inner).replace(/\r?\n/g, ' ');
     return `$$${cleanInner}$$`;
   });
 
   result = result.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]*?)\\end\{\1\}/g, (match, envName, inner) => {
-    const cleanInner = inner.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+    const cleanInner = replacePipesInMath(inner).replace(/\r?\n/g, ' ');
     return `\\begin{${envName}}${cleanInner}\\end{${envName}}`;
   });
 
-  result = result.replace(/(?<!\$)\$([^$]+?)\$(?!\$)/g, (match, inner) => {
-    if (inner.includes('\n\n')) return match;
-    const cleanInner = inner.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  result = result.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (match, inner) => {
+    const cleanInner = replacePipesInMath(inner).replace(/\r?\n/g, ' ');
     return `$${cleanInner}$`;
   });
   // Step 10: Clean up excessive newlines
@@ -153,6 +189,27 @@ export function preprocessLatex(content: string): string {
   
   // Step 11: Fix single $ inside display math (common AI error)
   // If we have $$ ... $ something $ ... $$, the inner $ should be kept as-is
+
+  // Step 12: Escape backslashes inside math blocks and environments in markdown tables
+  const lines = result.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.includes('|')) {
+      let processedLine = line;
+      // Process display math $$...$$ and inline math $...$
+      processedLine = processedLine.replace(/(\$\$?)([\s\S]+?)\1/g, (match, delimiter, inner) => {
+        const doubled = inner.replace(/(?<!\\)\\\\(?!\\)/g, '\\\\\\\\');
+        return `${delimiter}${doubled}${delimiter}`;
+      });
+      // Process environments \begin{env}...\end{env}
+      processedLine = processedLine.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]*?)\\end\{\1\}/g, (match, envName, inner) => {
+        const doubled = inner.replace(/(?<!\\)\\\\(?!\\)/g, '\\\\\\\\');
+        return `\\begin{${envName}}${doubled}\\end{${envName}}`;
+      });
+      lines[i] = processedLine;
+    }
+  }
+  result = lines.join('\n');
 
   // ── Restore code blocks (they were never touched)
   return restoreCode(result);
@@ -497,4 +554,35 @@ export function cleanMarkdown(content: string): string {
   result = result.replace(/^---+$/gm, '');
   result = result.replace(/^\*\*\*+$/gm, '');
   return result;
+}
+
+/**
+ * Auto-closes unclosed markdown and math tags (fences) during chat streaming.
+ * Keeps the ReactMarkdown compiler happy and prevents layout/flicker blowouts.
+ */
+export function autoCloseMarkdownAndMath(text: string): string {
+  if (!text) return '';
+
+  let closedText = text;
+
+  // 1. Close unclosed code blocks (fenced code blocks)
+  const codeBlockCount = (closedText.match(/```/g) || []).length;
+  if (codeBlockCount % 2 !== 0) {
+    closedText += '\n```';
+  }
+
+  // 2. Close unclosed display math blocks ($$)
+  const displayMathCount = (closedText.match(/\$\$/g) || []).length;
+  if (displayMathCount % 2 !== 0) {
+    closedText += '\n$$';
+  }
+
+  // 3. Close unclosed inline math blocks ($)
+  // Mask $$ first so we only count single $
+  const singleDollarCount = (closedText.replace(/\$\$/g, '').match(/\$/g) || []).length;
+  if (singleDollarCount % 2 !== 0) {
+    closedText += '$';
+  }
+
+  return closedText;
 }

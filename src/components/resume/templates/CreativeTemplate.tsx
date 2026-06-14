@@ -33,7 +33,7 @@ export function CreativeTemplate({ data, config }: TemplateProps) {
 
   return (
     <div 
-      className="bg-white text-gray-800 w-full max-w-[210mm] mx-auto shadow-lg flex min-h-[297mm]"
+      className="resume-creative bg-white text-gray-800 w-full max-w-[210mm] mx-auto shadow-lg flex min-h-[297mm]"
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       {/* Sidebar */}

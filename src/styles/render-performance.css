@@ -83,7 +83,7 @@
 /* The scroll container should use GPU compositing for smooth scrolling. */
 
 .chat-scroll-area {
-  contain: strict;
+  contain: content;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
