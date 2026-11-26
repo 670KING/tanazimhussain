@@ -1,73 +1,97 @@
-# Welcome to your Lovable project
+# Tanazim Hussain — AI Study & Productivity Platform
 
-## Project info
+A full-stack web application that helps students study smarter using AI. It combines
+AI chat, a quiz generator, a summarizer, study-plan generation, a document library,
+analytics, and a built-in resume builder — all behind a secure authentication system.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Live project:** https://tanoedu-ai.web.app/
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **AI Chat** — conversational assistant with PDF/image attachments, chart rendering,
+  and Markdown + LaTeX math support.
+- **Quiz Generator** — turn notes or topics into practice quizzes.
+- **Summarizer** — condense long text and documents into concise summaries.
+- **Study Plans** — generate structured study schedules.
+- **Documents** — upload, store, and manage study materials.
+- **Resume Builder** — create and export polished PDF resumes from templates.
+- **Analytics & Dashboard** — track activity and progress.
+- **Authentication** — secure sign-up / login with per-user data isolation.
+- **Responsive UI** with light / dark / system themes.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+| Layer      | Technology                                                        |
+| ---------- | ----------------------------------------------------------------- |
+| Frontend   | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query |
+| Backend    | Supabase (Postgres, Auth, Storage, Edge Functions)                |
+| AI         | OpenRouter (free models) via server-side Edge Functions           |
+| PDF        | Client-side HTML-to-PDF generation                                |
 
-**Use your preferred IDE**
+## Architecture
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```
+src/                 React app (pages, components, hooks)
+supabase/functions/  Deno Edge Functions (chat, chat-tools) — server-side secrets
+supabase/migrations/ Database schema migrations
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+All privileged operations (AI calls, service-role DB access) run inside Supabase Edge
+Functions. API keys for OpenRouter and the Supabase service role are stored as
+**server-side secrets** and are never shipped to the browser.
 
-Follow these steps:
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ (recommend [nvm](https://github.com/nvm-sh/nvm))
+- A Supabase project
+
+### Setup
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# 1. Clone
+git clone https://github.com/670KING/tanazimhussain.git
+cd tanazimhussain
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# 2. Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 3. Configure environment
+cp .env.example .env
+# Fill in your Supabase project values in .env
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 4. Start the dev server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Environment Variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Copy `.env.example` to `.env` and fill in your own values:
 
-**Use GitHub Codespaces**
+- `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+  — public browser config (safe to expose).
+- `OPENROUTER_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` — **server-only secrets**,
+  set them in Supabase Edge Function secrets, never in `.env` or source control.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Scripts
 
-## What technologies are used for this project?
+| Command            | Description                       |
+| ------------------ | --------------------------------- |
+| `npm run dev`      | Start the dev server              |
+| `npm run build`    | Production build                  |
+| `npm run preview`  | Preview the production build      |
+| `npm run lint`     | Run ESLint                        |
 
-This project is built with:
+## Security Notes
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- `.env` is git-ignored; only `.env.example` is committed.
+- The browser only ever receives the public anon/publishable key.
+- Service-role and AI keys live exclusively in Edge Function secrets.
+- Row-level access keeps each user's data isolated.
 
-## How can I deploy this project?
+## License
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+See repository for license details.
